@@ -1,27 +1,23 @@
-# NovaBridge Front
+# Clyra Exchange Front
 
-Front React + Vite, sombre et premium, pensé pour une démo de type exchange crypto.
+Application React + Vite front-only pour une plateforme crypto/paiement premium avec :
 
-## Ce que contient le projet
+- landing page cohérente
+- moteur d’échange multi-flows
+- dashboard utilisateur
+- panel admin par onglets
+- persistance complète via localStorage
+- build Vite simple et compatible Vercel
 
-- landing page premium
-- page exchange
-- page market
-- dashboard
-- page transactions
-- login démo
-- admin panel local pour changer branding, PayPal, wallets et frais
-- persistance via `localStorage`
-- build statique simple, sans Prisma
+## Stack
 
-## Pourquoi ce projet évite les galères Vercel
+- React 18
+- Vite 5
+- React Router 6
+- CSS global simple
+- localStorage pour la persistance
 
-- aucune dépendance Prisma
-- aucun backend requis pour le build
-- build purement statique via Vite
-- `vercel.json` inclus pour les routes SPA
-
-## Installation
+## Lancer le projet
 
 ```bash
 npm install
@@ -32,45 +28,39 @@ npm run dev
 
 ```bash
 npm run build
-npm run preview
 ```
 
-Le build sort dans `dist/`.
+Le build génère un dossier `dist` directement exploitable sur Vercel.
 
 ## Déploiement Vercel
 
-Le projet est prêt pour un déploiement statique. Le fichier `vercel.json` contient déjà le rewrite SPA vers `index.html`.
+- Framework Preset : `Vite` ou `Other`
+- Build Command : `npm run build`
+- Output Directory : `dist`
 
-## Où changer rapidement les valeurs
+Aucune base externe, aucune API obligatoire, aucun runtime serveur n’est requis.
 
-### Sans code
+## Accès admin local par défaut
 
-- va sur `/login`
-- connecte-toi avec `admin@novabridge.dev` / `demo1234`
-- ouvre `/admin`
-- change le branding, le PayPal, les wallets, les frais
+- email : `admin@clyra.exchange`
+- mot de passe : `control2026!`
 
-### Dans le code
+Ces identifiants restent modifiables depuis l’onglet **Sécurité & Accès Admin**.
 
-- `src/config/defaultConfig.js`
+## Persistance locale
 
-## API plus tard
+Les données sont stockées via des clés versionnées :
 
-Si tu veux brancher une vraie API ensuite, commence par remplacer les mocks dans:
+- `app_config_v1`
+- `app_users_v1`
+- `app_transactions_v1`
+- `app_notifications_v1`
+- `app_admin_access_v1`
+- `app_admin_logs_v1`
+- `app_analytics_v1`
+- `app_session_v1`
+- `app_admin_draft_v1`
 
-- `src/data/market.js`
-- `src/data/transactions.js`
+## Notes
 
-Puis ajoute tes appels dans tes propres services. Le build front restera simple.
-
-## Variables d'environnement
-
-Voir `.env.example`.
-
-- `VITE_API_BASE_URL`
-- `VITE_ENABLE_REMOTE_API`
-
-## Notes importantes
-
-L'admin actuel est une démo front uniquement. Il ne sécurise rien côté serveur. Pour une vraie prod, branche ton backend et ta vraie auth.
-"# siteweb2EXCHANGEEEEEEEEEEE" 
+La sécurité d’authentification admin reste strictement locale au navigateur. Le mot de passe et le PIN sont hachés côté front pour éviter le stockage en clair, sans prétendre fournir une sécurité serveur réelle.

@@ -1,111 +1,93 @@
-import { Field, SaveBar, SectionCard, ToggleRow } from '../AdminPrimitives';
+import { FLOW_DEFINITIONS } from '../../../utils/exchange';
+import { AdminField, AdminSaveBar, AdminSection, AdminToggle } from '../AdminFormControls';
 
-export default function ExchangeRulesTab({ value, marketAssets, dirty, onChange, onSave, onReset }) {
-  const hasError = Number(value.minAmount) < 0 || Number(value.maxAmount) <= Number(value.minAmount);
+export default function ExchangeRulesTab({ data, dirty, onChangeSection, onSave, onReset, readOnly = false }) {
+  const { exchange, market } = data;
 
-  function updateAssetFee(symbol, nextValue) {
-    onChange({
-      ...value,
-      assetFees: {
-        ...value.assetFees,
-        [symbol]: Number(nextValue || 0),
-      },
-    });
+  function updateExchange(patch) {
+    onChangeSection('exchange', { ...exchange, ...patch });
   }
 
-  function updateFixedRate(symbol, nextValue) {
-    onChange({
-      ...value,
+  function updateAssetFee(symbol, value) {
+    updateExchange({ assetFeeOverrides: { ...exchange.assetFeeOverrides, [symbol]: Number(value || 0) } });
+  }
+
+  function updateFixedRate(flowKey, symbol, value) {
+    updateExchange({
       fixedRates: {
-        ...value.fixedRates,
-        [symbol]: Number(nextValue || 0),
+        ...exchange.fixedRates,
+        [flowKey]: { ...exchange.fixedRates[flowKey], [symbol]: Number(value || 0) },
       },
     });
   }
 
-  function updatePair(symbol, enabled) {
-    onChange({
-      ...value,
-      enabledPairs: {
-        ...value.enabledPairs,
-        [symbol]: enabled,
-      },
+  function updateValidation(field, value) {
+    updateExchange({
+      validationMessages: { ...exchange.validationMessages, [field]: value },
     });
   }
 
   return (
     <div className="admin-stack">
-      <SectionCard eyebrow="Règles" title="Règles globales de l’exchange" description="Contrôle le niveau de frais, les limites de transaction et le mode taux fixe.">
+      <AdminSection eyebrow="Règles globales" title="Frais, limites, arrondis et devise principale" description="Ces paramètres influencent l’estimation nette, les validations et les panneaux latéraux de l’exchange.">
+        <div className="field-grid field-grid--4">
+          <AdminField label="Frais globaux (%)"><input disabled={readOnly} type="number" min="0" step="0.1" value={exchange.globalFeePercent} onChange={(event) => updateExchange({ globalFeePercent: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Montant minimum"><input disabled={readOnly} type="number" min="0" step="1" value={exchange.minimumAmount} onChange={(event) => updateExchange({ minimumAmount: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Montant maximum"><input disabled={readOnly} type="number" min="0" step="1" value={exchange.maximumAmount} onChange={(event) => updateExchange({ maximumAmount: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Arrondi crypto"><input disabled={readOnly} type="number" min="0" step="1" value={exchange.roundingDigits} onChange={(event) => updateExchange({ roundingDigits: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Devise principale"><input disabled={readOnly} value={exchange.primaryCurrency} onChange={(event) => updateExchange({ primaryCurrency: event.target.value })} /></AdminField>
+          <AdminField label="Délai estimé"><input disabled={readOnly} value={exchange.estimatedDelay} onChange={(event) => updateExchange({ estimatedDelay: event.target.value })} /></AdminField>
+          <AdminField label="Avertissement exchange" className="field--full"><textarea disabled={readOnly} value={exchange.warningMessage} onChange={(event) => updateExchange({ warningMessage: event.target.value })} /></AdminField>
+        </div>
+      </AdminSection>
+
+      <AdminSection eyebrow="Overrides" title="Frais par crypto" description="Ajustez les overrides par asset pour affiner la marge par flux.">
+        <div className="field-grid field-grid--4">
+          {market.assets.map((asset) => (
+            <AdminField key={asset.symbol} label={`Frais ${asset.symbol} (%)`}>
+              <input disabled={readOnly} type="number" min="0" step="0.1" value={exchange.assetFeeOverrides[asset.symbol] ?? 0} onChange={(event) => updateAssetFee(asset.symbol, event.target.value)} />
+            </AdminField>
+          ))}
+        </div>
+      </AdminSection>
+
+      <AdminSection eyebrow="Disponibilité" title="Combinaisons activées et mode taux fixe" description="Les cartes de la landing exchange et les étapes affichées suivent ces règles.">
+        <div className="toggle-stack">
+          {FLOW_DEFINITIONS.map((flow) => (
+            <AdminToggle key={flow.key} label={flow.label} checked={exchange.flowAvailability[flow.key]} onChange={(checked) => updateExchange({ flowAvailability: { ...exchange.flowAvailability, [flow.key]: checked } })} disabled={readOnly} />
+          ))}
+          <AdminToggle label="Mode taux fixe" checked={exchange.fixedRateMode} onChange={(checked) => updateExchange({ fixedRateMode: checked })} disabled={readOnly} />
+        </div>
+      </AdminSection>
+
+      <AdminSection eyebrow="Taux fixes" title="Rates par flux et par crypto" description="Utilisez ces champs si vous souhaitez forcer un pricing local plutôt que les prix du marché.">
+        <div className="sub-card-grid">
+          {FLOW_DEFINITIONS.filter((flow) => flow.requiresAsset).map((flow) => (
+            <div key={flow.key} className="sub-card">
+              <h4>{flow.label}</h4>
+              <div className="field-grid field-grid--4">
+                {market.assets.filter((asset) => asset.visibleInExchange).map((asset) => (
+                  <AdminField key={`${flow.key}-${asset.symbol}`} label={asset.symbol}>
+                    <input disabled={readOnly} type="number" min="0" step="0.0001" value={exchange.fixedRates?.[flow.key]?.[asset.symbol] ?? 0} onChange={(event) => updateFixedRate(flow.key, asset.symbol, event.target.value)} />
+                  </AdminField>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </AdminSection>
+
+      <AdminSection eyebrow="Validation" title="Messages d’erreur du formulaire" description="Les messages apparaissent directement dans le moteur d’échange.">
         <div className="field-grid field-grid--2">
-          <Field label="Frais globaux (%)">
-            <input type="number" min="0" step="0.1" value={value.globalFeePercent} onChange={(event) => onChange({ ...value, globalFeePercent: Number(event.target.value || 0) })} />
-          </Field>
-          <Field label="Montant minimum (€)">
-            <input type="number" min="0" step="1" value={value.minAmount} onChange={(event) => onChange({ ...value, minAmount: Number(event.target.value || 0) })} />
-          </Field>
-          <Field label="Montant maximum (€)" error={hasError ? 'Le maximum doit être supérieur au minimum.' : ''}>
-            <input type="number" min="0" step="1" value={value.maxAmount} onChange={(event) => onChange({ ...value, maxAmount: Number(event.target.value || 0) })} />
-          </Field>
-          <ToggleRow
-            label="Activer le mode taux fixe"
-            description="Quand il est actif, l’Exchange affiche les taux fixes ci-dessous au lieu des prix mock du marché."
-            checked={value.manualRateMode}
-            onChange={(checked) => onChange({ ...value, manualRateMode: checked })}
-          />
-          <Field className="field--full" label="Message d’avertissement du formulaire Exchange">
-            <textarea value={value.warningMessage} onChange={(event) => onChange({ ...value, warningMessage: event.target.value })} rows="3" />
-          </Field>
+          <AdminField label="Montant minimum"><input disabled={readOnly} value={exchange.validationMessages.min} onChange={(event) => updateValidation('min', event.target.value)} /></AdminField>
+          <AdminField label="Montant maximum"><input disabled={readOnly} value={exchange.validationMessages.max} onChange={(event) => updateValidation('max', event.target.value)} /></AdminField>
+          <AdminField label="Destination manquante"><input disabled={readOnly} value={exchange.validationMessages.recipient} onChange={(event) => updateValidation('recipient', event.target.value)} /></AdminField>
+          <AdminField label="Email invalide"><input disabled={readOnly} value={exchange.validationMessages.email} onChange={(event) => updateValidation('email', event.target.value)} /></AdminField>
+          <AdminField label="Montant invalide"><input disabled={readOnly} value={exchange.validationMessages.amount} onChange={(event) => updateValidation('amount', event.target.value)} /></AdminField>
         </div>
-      </SectionCard>
+      </AdminSection>
 
-      <SectionCard eyebrow="Overrides" title="Overrides crypto par crypto" description="Ajuste les frais, les paires actives et les taux fixes pour chaque crypto affichée.">
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Crypto</th>
-                <th>Paire active</th>
-                <th>Frais (%)</th>
-                <th>Taux fixe (EUR)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {marketAssets.map((asset) => (
-                <tr key={asset.symbol}>
-                  <td>
-                    <strong>{asset.symbol}</strong>
-                    <span>{asset.name}</span>
-                  </td>
-                  <td>
-                    <ToggleRow label={asset.symbol} checked={Boolean(value.enabledPairs[asset.symbol])} onChange={(checked) => updatePair(asset.symbol, checked)} />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={value.assetFees[asset.symbol] ?? value.globalFeePercent}
-                      onChange={(event) => updateAssetFee(asset.symbol, event.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      disabled={!value.manualRateMode}
-                      value={value.fixedRates[asset.symbol] ?? asset.price}
-                      onChange={(event) => updateFixedRate(asset.symbol, event.target.value)}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
-
-      <SaveBar dirty={dirty} disabled={hasError} onSave={() => onSave()} onReset={onReset} />
+      {!readOnly ? <AdminSaveBar dirty={dirty} onSave={onSave} onReset={onReset} /> : null}
     </div>
   );
 }

@@ -1,47 +1,58 @@
+import BrandMark from './BrandMark';
 import { useApp } from '../context/AppContext';
+import { compact, formatNumber } from '../utils/format';
 
 export default function Footer() {
-  const { config } = useApp();
-  const logo = config.branding.logoDataUrl || config.branding.logoUrl || '/logo-mark.svg';
+  const { config, language } = useApp();
+  const { footer, socialLinks, branding, payments, trustIndicators } = config;
 
   return (
-    <footer className="footer">
-      <div className="container footer__grid">
-        <div>
-          <div className="brand brand--footer">
-            <img src={logo} alt={config.branding.siteName} className="brand__logo" />
-            <div>
-              <strong>{config.branding.siteName}</strong>
-              <span>{config.branding.tagline}</span>
+    <footer className="footer-shell">
+      <div className="container footer-grid">
+        <div className="footer-block footer-block--brand">
+          <div className="brand-link brand-link--footer">
+            <BrandMark branding={branding} size={40} />
+            <div className="brand-link__text">
+              <strong>{branding.siteName}</strong>
+              <span>{branding.tagline}</span>
             </div>
           </div>
-          <p>{config.content.footer.text}</p>
-          <small>{config.branding.footerCopyright}</small>
+          <p>{footer.text}</p>
+          <div className="footer-mini-stats">
+            <div><span>{language === 'fr' ? 'Volume' : 'Volume'}</span><strong>{compact(trustIndicators.monthlyVolume, language)}</strong></div>
+            <div><span>{language === 'fr' ? 'Avis' : 'Reviews'}</span><strong>{formatNumber(trustIndicators.reviewCount, 0, language)}</strong></div>
+            <div><span>{language === 'fr' ? 'Satisfaction' : 'Satisfaction'}</span><strong>{trustIndicators.supportSatisfaction}%</strong></div>
+          </div>
+          <small>{footer.copyright}</small>
         </div>
-        <div>
-          <h4>Liens légaux</h4>
+
+        <div className="footer-block">
+          <h4>{language === 'fr' ? 'Liens légaux' : 'Legal links'}</h4>
           <ul>
-            {config.branding.footerLinks.map((link) => (
+            {footer.legalLinks.map((link) => (
               <li key={`${link.label}-${link.url}`}>
                 <a href={link.url}>{link.label}</a>
               </li>
             ))}
           </ul>
         </div>
-        <div>
-          <h4>Social</h4>
+
+        <div className="footer-block">
+          <h4>{language === 'fr' ? 'Réseaux' : 'Social'}</h4>
           <ul>
-            <li><a href={config.branding.socials.twitter}>Twitter</a></li>
-            <li><a href={config.branding.socials.telegram}>Telegram</a></li>
-            <li><a href={config.branding.socials.discord}>Discord</a></li>
+            <li><a href={socialLinks.twitter} target="_blank" rel="noreferrer">Twitter</a></li>
+            <li><a href={socialLinks.telegram} target="_blank" rel="noreferrer">Telegram</a></li>
+            <li><a href={socialLinks.discord} target="_blank" rel="noreferrer">Discord</a></li>
+            <li><a href={socialLinks.linkedin} target="_blank" rel="noreferrer">LinkedIn</a></li>
           </ul>
         </div>
-        <div>
-          <h4>Support</h4>
+
+        <div className="footer-block">
+          <h4>{language === 'fr' ? 'Support & règlements' : 'Support & settlement'}</h4>
           <ul>
-            <li>{config.branding.supportEmail}</li>
-            <li>{config.payments.paypalEmail}</li>
-            <li>{config.payments.confirmationDelay}</li>
+            <li>{branding.supportEmail}</li>
+            <li>{payments.paypal.email}</li>
+            <li>{payments.paypal.confirmationDelay}</li>
           </ul>
         </div>
       </div>

@@ -1,168 +1,131 @@
 import { useMemo, useState } from 'react';
 import Badge from '../../Badge';
-import { EmptyState, Field, SaveBar, SectionCard, StatCard } from '../AdminPrimitives';
-import { euro, formatDateTime, formatInputDateTime, statusTone } from '../../../utils/format';
-import { downloadTextFile, makeId, toCsvString } from '../../../utils/storage';
+import { AdminEmptyState, AdminField, AdminMetric, AdminSaveBar, AdminSection } from '../AdminFormControls';
+import { euro, formatDateTime, statusTone } from '../../../utils/format';
+import { downloadCSV, generateId } from '../../../utils/storage';
 
-const STATUS_OPTIONS = ['En attente', 'Confirmée', 'Rejetée', 'En cours'];
+const STATUS_OPTIONS = ['En attente', 'En cours', 'Confirmée', 'Rejetée'];
+const FLOW_OPTIONS = ['PayPal → Crypto', 'Crypto → PayPal', 'Paysafecard → Crypto', 'Paysafecard → PayPal'];
 
-export default function TransactionsTab({ value, dirty, onChange, onSave, onReset }) {
-  const [filters, setFilters] = useState({
-    status: 'all',
-    crypto: 'all',
-    minAmount: '',
-    date: '',
-  });
+export default function TransactionsTab({ data, dirty, onChangeSection, onSave, onReset, readOnly = false }) {
+  const rows = data.transactions;
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [flowFilter, setFlowFilter] = useState('all');
+  const [assetFilter, setAssetFilter] = useState('all');
   const [newTransaction, setNewTransaction] = useState({
     userName: '',
     userEmail: '',
-    type: 'Crypto → PayPal',
-    amount: 100,
-    crypto: 'BTC',
-    quantity: 0.002,
+    type: 'PayPal → Crypto',
+    paymentMethod: 'PayPal',
+    receiveMethod: 'BTC',
+    amountGross: 500,
+    fees: 12,
+    amountNet: 488,
+    asset: 'BTC',
     status: 'En attente',
-    payoutMethod: 'PayPal',
-    date: formatInputDateTime(new Date().toISOString()),
   });
 
-  const filteredTransactions = useMemo(() => {
-    return value.filter((transaction) => {
-      if (filters.status !== 'all' && transaction.status !== filters.status) return false;
-      if (filters.crypto !== 'all' && transaction.crypto !== filters.crypto) return false;
-      if (filters.minAmount && Number(transaction.amount) < Number(filters.minAmount)) return false;
-      if (filters.date && !transaction.date.startsWith(filters.date)) return false;
-      return true;
+  const filteredRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return rows.filter((row) => {
+      const matchesSearch = !query || `${row.id} ${row.userName} ${row.userEmail} ${row.type}`.toLowerCase().includes(query);
+      const matchesStatus = statusFilter === 'all' || row.status === statusFilter;
+      const matchesFlow = flowFilter === 'all' || row.type === flowFilter;
+      const matchesAsset = assetFilter === 'all' || row.asset === assetFilter;
+      return matchesSearch && matchesStatus && matchesFlow && matchesAsset;
     });
-  }, [filters, value]);
+  }, [rows, search, statusFilter, flowFilter, assetFilter]);
 
-  function updateTransaction(id, patch) {
-    onChange(value.map((transaction) => (transaction.id === id ? { ...transaction, ...patch } : transaction)));
+  const totalVolume = filteredRows.reduce((sum, row) => sum + Number(row.amountGross || 0), 0);
+  const pendingCount = filteredRows.filter((row) => row.status === 'En attente').length;
+  const confirmedCount = filteredRows.filter((row) => row.status === 'Confirmée').length;
+  const assetOptions = Array.from(new Set(rows.map((row) => row.asset).filter(Boolean)));
+
+  function updateTransactions(nextRows) {
+    onChangeSection('transactions', nextRows);
   }
 
-  function deleteTransaction(id) {
-    onChange(value.filter((transaction) => transaction.id !== id));
+  function updateRow(id, patch) {
+    updateTransactions(rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  }
+
+  function deleteRow(id) {
+    updateTransactions(rows.filter((row) => row.id !== id));
   }
 
   function addTransaction() {
-    if (!newTransaction.userName.trim()) return;
-    onChange([
+    if (readOnly || !newTransaction.userName.trim()) return;
+    updateTransactions([
       {
-        id: makeId('TX'),
-        userId: newTransaction.userEmail || makeId('USR'),
-        userName: newTransaction.userName.trim(),
-        userEmail: newTransaction.userEmail.trim(),
-        type: newTransaction.type,
-        amount: Number(newTransaction.amount || 0),
-        crypto: newTransaction.crypto,
-        quantity: Number(newTransaction.quantity || 0),
-        payoutMethod: newTransaction.payoutMethod,
-        status: newTransaction.status,
-        date: new Date(newTransaction.date || new Date().toISOString()).toISOString(),
+        ...newTransaction,
+        id: generateId('TX'),
+        flowKey: newTransaction.type.replace(/\s+/g, ''),
+        userId: generateId('USR'),
+        assetQuantity: 0,
+        date: new Date().toISOString(),
+        recipient: newTransaction.receiveMethod === 'PayPal' ? newTransaction.userEmail : '',
+        reference: 'NEW-LOCAL',
+        note: 'Ajout manuel depuis l’admin',
       },
-      ...value,
+      ...rows,
     ]);
+    setNewTransaction({ userName: '', userEmail: '', type: 'PayPal → Crypto', paymentMethod: 'PayPal', receiveMethod: 'BTC', amountGross: 500, fees: 12, amountNet: 488, asset: 'BTC', status: 'En attente' });
   }
 
-  function exportCsv() {
-    const rows = filteredTransactions.map((transaction) => ({
-      id: transaction.id,
-      utilisateur: transaction.userName,
-      email: transaction.userEmail,
-      type: transaction.type,
-      montant: transaction.amount,
-      crypto: transaction.crypto,
-      quantite: transaction.quantity,
-      statut: transaction.status,
-      date: formatDateTime(transaction.date),
-    }));
-    downloadTextFile('transactions-export.csv', toCsvString(rows), 'text/csv;charset=utf-8');
+  function exportRows() {
+    downloadCSV('transactions-export.csv', filteredRows.map((row) => ({
+      id: row.id,
+      user: row.userName,
+      email: row.userEmail,
+      type: row.type,
+      paymentMethod: row.paymentMethod,
+      receiveMethod: row.receiveMethod,
+      gross: row.amountGross,
+      fees: row.fees,
+      net: row.amountNet,
+      asset: row.asset,
+      status: row.status,
+      date: row.date,
+    })));
   }
-
-  const totalVolume = value.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
-  const pendingCount = value.filter((transaction) => transaction.status === 'En attente').length;
-  const confirmedCount = value.filter((transaction) => transaction.status === 'Confirmée').length;
-  const cryptos = Array.from(new Set(value.map((transaction) => transaction.crypto)));
 
   return (
     <div className="admin-stack">
       <div className="metric-grid metric-grid--4">
-        <StatCard label="Transactions" value={String(value.length)} helper="Dataset complet" />
-        <StatCard label="Volume total" value={euro(totalVolume)} helper="Montants cumulés" tone="warning" />
-        <StatCard label="En attente" value={String(pendingCount)} helper="À traiter" tone="info" />
-        <StatCard label="Confirmées" value={String(confirmedCount)} helper="Validées" tone="success" />
+        <AdminMetric label="Total transactions" value={String(filteredRows.length)} helper="Vue filtrée" />
+        <AdminMetric label="Volume total" value={euro(totalVolume)} helper="Montant brut cumulé" tone="info" />
+        <AdminMetric label="En attente" value={String(pendingCount)} helper="À surveiller" tone="warning" />
+        <AdminMetric label="Confirmées" value={String(confirmedCount)} helper="Finalisées" tone="success" />
       </div>
 
-      <SectionCard eyebrow="Ajout" title="Ajouter une transaction mock" description="Création manuelle d’une ligne dans le dataset local.">
+      <AdminSection eyebrow="Ajout manuel" title="Créer une transaction locale" description="Ajoutez une ligne crédible à la table pour enrichir le dashboard, l’historique et les compteurs.">
         <div className="field-grid field-grid--4">
-          <Field label="Utilisateur">
-            <input value={newTransaction.userName} onChange={(event) => setNewTransaction((current) => ({ ...current, userName: event.target.value }))} />
-          </Field>
-          <Field label="Email utilisateur">
-            <input value={newTransaction.userEmail} onChange={(event) => setNewTransaction((current) => ({ ...current, userEmail: event.target.value }))} />
-          </Field>
-          <Field label="Crypto">
-            <input value={newTransaction.crypto} onChange={(event) => setNewTransaction((current) => ({ ...current, crypto: event.target.value.toUpperCase() }))} />
-          </Field>
-          <Field label="Montant (€)">
-            <input type="number" min="0" step="0.01" value={newTransaction.amount} onChange={(event) => setNewTransaction((current) => ({ ...current, amount: Number(event.target.value || 0) }))} />
-          </Field>
-          <Field label="Quantité crypto">
-            <input type="number" min="0" step="0.0001" value={newTransaction.quantity} onChange={(event) => setNewTransaction((current) => ({ ...current, quantity: Number(event.target.value || 0) }))} />
-          </Field>
-          <Field label="Statut">
-            <select value={newTransaction.status} onChange={(event) => setNewTransaction((current) => ({ ...current, status: event.target.value }))}>
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Date / heure">
-            <input type="datetime-local" value={newTransaction.date} onChange={(event) => setNewTransaction((current) => ({ ...current, date: event.target.value }))} />
-          </Field>
-          <div className="field field--action">
-            <span className="field__label">Action</span>
-            <button className="button button--primary" type="button" onClick={addTransaction}>
-              Ajouter la transaction
-            </button>
-          </div>
+          <AdminField label="Utilisateur"><input disabled={readOnly} value={newTransaction.userName} onChange={(event) => setNewTransaction((current) => ({ ...current, userName: event.target.value }))} /></AdminField>
+          <AdminField label="Email"><input disabled={readOnly} value={newTransaction.userEmail} onChange={(event) => setNewTransaction((current) => ({ ...current, userEmail: event.target.value }))} /></AdminField>
+          <AdminField label="Type"><select disabled={readOnly} value={newTransaction.type} onChange={(event) => setNewTransaction((current) => ({ ...current, type: event.target.value }))}>{FLOW_OPTIONS.map((option) => <option key={option}>{option}</option>)}</select></AdminField>
+          <AdminField label="Statut"><select disabled={readOnly} value={newTransaction.status} onChange={(event) => setNewTransaction((current) => ({ ...current, status: event.target.value }))}>{STATUS_OPTIONS.map((option) => <option key={option}>{option}</option>)}</select></AdminField>
+          <AdminField label="Méthode paiement"><input disabled={readOnly} value={newTransaction.paymentMethod} onChange={(event) => setNewTransaction((current) => ({ ...current, paymentMethod: event.target.value }))} /></AdminField>
+          <AdminField label="Méthode réception"><input disabled={readOnly} value={newTransaction.receiveMethod} onChange={(event) => setNewTransaction((current) => ({ ...current, receiveMethod: event.target.value }))} /></AdminField>
+          <AdminField label="Montant brut"><input disabled={readOnly} type="number" min="0" step="0.01" value={newTransaction.amountGross} onChange={(event) => setNewTransaction((current) => ({ ...current, amountGross: Number(event.target.value || 0) }))} /></AdminField>
+          <AdminField label="Frais"><input disabled={readOnly} type="number" min="0" step="0.01" value={newTransaction.fees} onChange={(event) => setNewTransaction((current) => ({ ...current, fees: Number(event.target.value || 0), amountNet: Math.max(0, Number(current.amountGross || 0) - Number(event.target.value || 0)) }))} /></AdminField>
+          <AdminField label="Montant net"><input disabled={readOnly} type="number" min="0" step="0.01" value={newTransaction.amountNet} onChange={(event) => setNewTransaction((current) => ({ ...current, amountNet: Number(event.target.value || 0) }))} /></AdminField>
+          <AdminField label="Asset"><input disabled={readOnly} value={newTransaction.asset} onChange={(event) => setNewTransaction((current) => ({ ...current, asset: event.target.value }))} /></AdminField>
+          {!readOnly ? <div className="field field--action"><span className="field__label">Action</span><button type="button" className="button button--primary" onClick={addTransaction}>Ajouter</button></div> : null}
         </div>
-      </SectionCard>
+      </AdminSection>
 
-      <SectionCard eyebrow="Filtres" title="Filtrer et exporter" description="Affiche uniquement les transactions correspondant à tes critères puis exporte le résultat en CSV.">
-        <div className="field-grid field-grid--4">
-          <Field label="Statut">
-            <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
-              <option value="all">Tous</option>
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Crypto">
-            <select value={filters.crypto} onChange={(event) => setFilters((current) => ({ ...current, crypto: event.target.value }))}>
-              <option value="all">Toutes</option>
-              {cryptos.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Montant minimum (€)">
-            <input type="number" min="0" value={filters.minAmount} onChange={(event) => setFilters((current) => ({ ...current, minAmount: event.target.value }))} />
-          </Field>
-          <Field label="Date">
-            <input type="date" value={filters.date} onChange={(event) => setFilters((current) => ({ ...current, date: event.target.value }))} />
-          </Field>
+      <AdminSection eyebrow="Table" title="Historique local des transactions" description="Recherche, filtres rapides, export CSV et édition des statuts.">
+        <div className="section-toolbar section-toolbar--filters">
+          <AdminField label="Recherche" className="field--compact"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ID, user, email" /></AdminField>
+          <AdminField label="Statut" className="field--compact"><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">Tous</option>{STATUS_OPTIONS.map((option) => <option key={option}>{option}</option>)}</select></AdminField>
+          <AdminField label="Type" className="field--compact"><select value={flowFilter} onChange={(event) => setFlowFilter(event.target.value)}><option value="all">Tous</option>{FLOW_OPTIONS.map((option) => <option key={option}>{option}</option>)}</select></AdminField>
+          <AdminField label="Asset" className="field--compact"><select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value)}><option value="all">Tous</option>{assetOptions.map((option) => <option key={option}>{option}</option>)}</select></AdminField>
+          {!readOnly ? <div className="field field--action"><span className="field__label">Export</span><button type="button" className="button button--ghost" onClick={exportRows}>CSV</button></div> : null}
         </div>
-        <div className="section-toolbar section-toolbar--right">
-          <button className="button button--ghost" type="button" onClick={exportCsv}>
-            Exporter CSV
-          </button>
-        </div>
-      </SectionCard>
 
-      <SectionCard eyebrow="Tableau" title="Transactions mock" description="Change les statuts inline, supprime des lignes ou ajuste les montants à la volée.">
-        {!filteredTransactions.length ? (
-          <EmptyState title="Aucune transaction" description="Aucun résultat avec les filtres actuels." />
+        {!filteredRows.length ? (
+          <AdminEmptyState title="Aucune transaction" description="Ajoutez une ligne manuelle ou ajustez les filtres." />
         ) : (
           <div className="table-wrap">
             <table className="data-table">
@@ -171,42 +134,42 @@ export default function TransactionsTab({ value, dirty, onChange, onSave, onRese
                   <th>ID</th>
                   <th>Utilisateur</th>
                   <th>Type</th>
-                  <th>Montant</th>
-                  <th>Crypto</th>
+                  <th>Paiement</th>
+                  <th>Réception</th>
+                  <th>Brut</th>
+                  <th>Net</th>
+                  <th>Asset</th>
                   <th>Statut</th>
                   <th>Date</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTransactions.map((transaction) => (
-                  <tr key={transaction.id}>
-                    <td>{transaction.id}</td>
+                {filteredRows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.id}</td>
                     <td>
-                      <strong>{transaction.userName}</strong>
-                      <span>{transaction.userEmail}</span>
+                      <div className="cell-stack">
+                        <strong>{row.userName}</strong>
+                        <span>{row.userEmail}</span>
+                      </div>
                     </td>
-                    <td>{transaction.type}</td>
+                    <td>{row.type}</td>
+                    <td>{row.paymentMethod}</td>
+                    <td>{row.receiveMethod}</td>
+                    <td>{euro(row.amountGross)}</td>
+                    <td>{euro(row.amountNet)}</td>
+                    <td>{row.asset}</td>
                     <td>
-                      <input type="number" min="0" step="0.01" value={transaction.amount} onChange={(event) => updateTransaction(transaction.id, { amount: Number(event.target.value || 0) })} />
-                    </td>
-                    <td>
-                      <input value={transaction.crypto} onChange={(event) => updateTransaction(transaction.id, { crypto: event.target.value.toUpperCase() })} />
-                    </td>
-                    <td>
-                      <select value={transaction.status} onChange={(event) => updateTransaction(transaction.id, { status: event.target.value })}>
-                        {STATUS_OPTIONS.map((option) => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
+                      <select disabled={readOnly} value={row.status} onChange={(event) => updateRow(row.id, { status: event.target.value })}>
+                        {STATUS_OPTIONS.map((option) => <option key={option}>{option}</option>)}
                       </select>
                     </td>
-                    <td>{formatDateTime(transaction.date)}</td>
+                    <td>{formatDateTime(row.date)}</td>
                     <td>
-                      <div className="inline-actions">
-                        <Badge tone={statusTone(transaction.status)}>{transaction.status}</Badge>
-                        <button className="button button--ghost button--sm" type="button" onClick={() => deleteTransaction(transaction.id)}>
-                          Supprimer
-                        </button>
+                      <div className="inline-actions inline-actions--stack">
+                        <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+                        {!readOnly ? <button type="button" className="button button--ghost button--sm" onClick={() => deleteRow(row.id)}>Supprimer</button> : null}
                       </div>
                     </td>
                   </tr>
@@ -215,9 +178,9 @@ export default function TransactionsTab({ value, dirty, onChange, onSave, onRese
             </table>
           </div>
         )}
-      </SectionCard>
+      </AdminSection>
 
-      <SaveBar dirty={dirty} onSave={() => onSave()} onReset={onReset} />
+      {!readOnly ? <AdminSaveBar dirty={dirty} onSave={onSave} onReset={onReset} /> : null}
     </div>
   );
 }

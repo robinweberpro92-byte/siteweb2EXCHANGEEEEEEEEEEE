@@ -1,88 +1,102 @@
-import { ArrayPreview, Field, SaveBar, SectionCard, StatCard } from '../AdminPrimitives';
-import { euro } from '../../../utils/format';
 import { defaultConfig } from '../../../config/defaultConfig';
-import { toArrayFromCsv } from '../../../utils/storage';
+import { compact, euro } from '../../../utils/format';
+import { AdminField, AdminMetric, AdminSaveBar, AdminSection, MiniBars } from '../AdminFormControls';
 
-export default function AnalyticsTab({ value, transactions, exchangeConfig, dirty, onChange, onSave, onReset }) {
-  const estimatedRevenue = Number(value.volumeTotal || 0) * (Number(exchangeConfig.globalFeePercent || 0) / 100);
+function parseCsv(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isFinite(item));
+}
 
-  function updateDistribution(index, nextValue) {
-    const assetDistribution = value.assetDistribution.map((item, currentIndex) =>
-      currentIndex === index ? { ...item, volume: Number(nextValue || 0) } : item,
-    );
-    onChange({ ...value, assetDistribution });
+export default function AnalyticsTab({ data, dirty, onChangeSection, onSave, onReset, readOnly = false }) {
+  const analytics = data.analytics;
+
+  function updateAnalytics(patch) {
+    onChangeSection('analytics', { ...analytics, ...patch });
+  }
+
+  function updateTopAsset(index, value) {
+    updateAnalytics({ topAssets: analytics.topAssets.map((item, currentIndex) => (currentIndex === index ? { ...item, volume: Number(value || 0) } : item)) });
+  }
+
+  function updateFlowDistribution(index, value) {
+    updateAnalytics({ flowDistribution: analytics.flowDistribution.map((item, currentIndex) => (currentIndex === index ? { ...item, value: Number(value || 0) } : item)) });
+  }
+
+  function updateSentiment(key, value) {
+    updateAnalytics({
+      satisfactionBreakdown: {
+        ...analytics.satisfactionBreakdown,
+        [key]: Number(value || 0),
+      },
+    });
   }
 
   return (
     <div className="admin-stack">
       <div className="metric-grid metric-grid--4">
-        <StatCard label="Volume total" value={euro(value.volumeTotal)} helper="Mock modifiable" />
-        <StatCard label="Transactions" value={String(value.totalTransactions)} helper={`${transactions.length} lignes stockées`} tone="info" />
-        <StatCard label="Utilisateurs actifs" value={String(value.activeUsers)} helper="KPI mock" tone="success" />
-        <StatCard label="Revenus estimés" value={euro(estimatedRevenue)} helper={`Frais ${exchangeConfig.globalFeePercent}%`} tone="warning" />
+        <AdminMetric label="Volume total" value={euro(analytics.volumeTotal)} helper="Toutes périodes" />
+        <AdminMetric label="Transactions" value={compact(analytics.totalTransactions)} helper={`${data.transactions.length} lignes locales`} tone="success" />
+        <AdminMetric label="Utilisateurs actifs" value={compact(analytics.activeUsers)} helper="KPI local" tone="info" />
+        <AdminMetric label="Revenus estimés" value={euro(analytics.estimatedRevenue)} helper="Projection frais" tone="warning" />
+        <AdminMetric label="Completion rate" value={`${Number(analytics.completionRate || 0).toFixed(1)}%`} helper="transactions complétées" tone="success" />
+        <AdminMetric label="Traitement moyen" value={`${analytics.averageProcessingMinutes} min`} helper="temps de traitement" tone="warning" />
+        <AdminMetric label="Panier moyen" value={euro(analytics.averageTransaction)} helper="ticket moyen" tone="neutral" />
+        <AdminMetric label="Peak hour" value={analytics.peakHour} helper="activité la plus dense" tone="info" />
       </div>
 
-      <SectionCard eyebrow="KPI" title="Synthèse des performances" description="Ces chiffres sont utilisés pour habiller le dashboard et la home.">
+      <AdminSection eyebrow="KPI" title="Synthèse de performance" description="Ces valeurs alimentent le dashboard admin, la trust bar publique et les aperçus du produit.">
         <div className="field-grid field-grid--4">
-          <Field label="Volume total (€)">
-            <input type="number" min="0" step="1" value={value.volumeTotal} onChange={(event) => onChange({ ...value, volumeTotal: Number(event.target.value || 0) })} />
-          </Field>
-          <Field label="Nombre total de transactions">
-            <input type="number" min="0" step="1" value={value.totalTransactions} onChange={(event) => onChange({ ...value, totalTransactions: Number(event.target.value || 0) })} />
-          </Field>
-          <Field label="Utilisateurs actifs">
-            <input type="number" min="0" step="1" value={value.activeUsers} onChange={(event) => onChange({ ...value, activeUsers: Number(event.target.value || 0) })} />
-          </Field>
-          <Field label="Transaction moyenne (€)">
-            <input type="number" min="0" step="0.01" value={value.averageTransaction} onChange={(event) => onChange({ ...value, averageTransaction: Number(event.target.value || 0) })} />
-          </Field>
-          <Field label="Heure de pointe simulée">
-            <input value={value.peakHour} onChange={(event) => onChange({ ...value, peakHour: event.target.value })} />
-          </Field>
+          <AdminField label="Volume total"><input disabled={readOnly} type="number" min="0" step="1" value={analytics.volumeTotal} onChange={(event) => updateAnalytics({ volumeTotal: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Transactions"><input disabled={readOnly} type="number" min="0" step="1" value={analytics.totalTransactions} onChange={(event) => updateAnalytics({ totalTransactions: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Utilisateurs actifs"><input disabled={readOnly} type="number" min="0" step="1" value={analytics.activeUsers} onChange={(event) => updateAnalytics({ activeUsers: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Revenus estimés"><input disabled={readOnly} type="number" min="0" step="0.01" value={analytics.estimatedRevenue} onChange={(event) => updateAnalytics({ estimatedRevenue: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Panier moyen"><input disabled={readOnly} type="number" min="0" step="0.01" value={analytics.averageTransaction} onChange={(event) => updateAnalytics({ averageTransaction: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Completion rate"><input disabled={readOnly} type="number" min="0" max="100" step="0.1" value={analytics.completionRate} onChange={(event) => updateAnalytics({ completionRate: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Traitement moyen (min)"><input disabled={readOnly} type="number" min="1" step="1" value={analytics.averageProcessingMinutes} onChange={(event) => updateAnalytics({ averageProcessingMinutes: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Note moyenne"><input disabled={readOnly} type="number" min="0" max="5" step="0.1" value={analytics.averageRating} onChange={(event) => updateAnalytics({ averageRating: Number(event.target.value || 0) })} /></AdminField>
+          <AdminField label="Peak hour"><input disabled={readOnly} value={analytics.peakHour} onChange={(event) => updateAnalytics({ peakHour: event.target.value })} /></AdminField>
         </div>
-      </SectionCard>
+      </AdminSection>
 
-      <SectionCard eyebrow="Courbes" title="Volumes sur 7 et 30 jours" description="Renseigne des suites numériques séparées par des virgules pour alimenter les graphiques mock.">
+      <AdminSection eyebrow="Courbes" title="Volumes sur 7 et 30 jours" description="Saisissez des suites numériques séparées par des virgules pour alimenter les aperçus graphiques locaux.">
         <div className="field-grid field-grid--2">
-          <Field className="field--full" label="Volume 7 jours">
-            <textarea rows="3" value={value.dailyVolume7.join(', ')} onChange={(event) => onChange({ ...value, dailyVolume7: toArrayFromCsv(event.target.value) })} />
-          </Field>
-          <Field className="field--full" label="Volume 30 jours">
-            <textarea rows="4" value={value.dailyVolume30.join(', ')} onChange={(event) => onChange({ ...value, dailyVolume30: toArrayFromCsv(event.target.value) })} />
-          </Field>
+          <AdminField label="Volume 7 jours" className="field--full"><textarea disabled={readOnly} rows="3" value={analytics.dailyVolume7.join(', ')} onChange={(event) => updateAnalytics({ dailyVolume7: parseCsv(event.target.value) })} /></AdminField>
+          <AdminField label="Volume 30 jours" className="field--full"><textarea disabled={readOnly} rows="4" value={analytics.dailyVolume30.join(', ')} onChange={(event) => updateAnalytics({ dailyVolume30: parseCsv(event.target.value) })} /></AdminField>
         </div>
         <div className="chart-preview-grid">
-          <div className="chart-preview">
-            <span>7 jours</span>
-            <ArrayPreview items={value.dailyVolume7} />
-          </div>
-          <div className="chart-preview">
-            <span>30 jours</span>
-            <ArrayPreview items={value.dailyVolume30} />
-          </div>
+          <div className="chart-preview"><span>7 jours</span><MiniBars items={analytics.dailyVolume7} /></div>
+          <div className="chart-preview"><span>30 jours</span><MiniBars items={analytics.dailyVolume30} /></div>
         </div>
-      </SectionCard>
+      </AdminSection>
 
-      <SectionCard
-        eyebrow="Répartition"
-        title="Cryptos les plus échangées"
-        description="Utilisé pour le graphique donut/barres simulé du dashboard."
-        actions={
-          <button className="button button--ghost button--sm" type="button" onClick={() => onChange({ ...defaultConfig.analytics })}>
-            Reset stats mock
-          </button>
-        }
-      >
+      <AdminSection eyebrow="Répartition" title="Top assets, flows et satisfaction" description="Ces valeurs enrichissent l’overview admin et les modules de confiance.">
         <div className="field-grid field-grid--4">
-          {value.assetDistribution.map((item, index) => (
-            <Field key={`${item.symbol}-${index}`} label={item.symbol}>
-              <input type="number" min="0" step="1" value={item.volume} onChange={(event) => updateDistribution(index, event.target.value)} />
-            </Field>
+          {analytics.topAssets.map((item, index) => (
+            <AdminField key={`${item.symbol}-${index}`} label={`Top ${item.symbol}`}><input disabled={readOnly} type="number" min="0" step="1" value={item.volume} onChange={(event) => updateTopAsset(index, event.target.value)} /></AdminField>
           ))}
         </div>
-      </SectionCard>
+        <div className="field-grid field-grid--4">
+          {analytics.flowDistribution.map((item, index) => (
+            <AdminField key={`${item.key}-${index}`} label={item.label}><input disabled={readOnly} type="number" min="0" step="1" value={item.value} onChange={(event) => updateFlowDistribution(index, event.target.value)} /></AdminField>
+          ))}
+        </div>
+        <div className="field-grid field-grid--3">
+          <AdminField label="Satisfaction positive"><input disabled={readOnly} type="number" min="0" max="100" step="1" value={analytics.satisfactionBreakdown?.positive || 0} onChange={(event) => updateSentiment('positive', event.target.value)} /></AdminField>
+          <AdminField label="Satisfaction mixte"><input disabled={readOnly} type="number" min="0" max="100" step="1" value={analytics.satisfactionBreakdown?.mixed || 0} onChange={(event) => updateSentiment('mixed', event.target.value)} /></AdminField>
+          <AdminField label="Feedback critique"><input disabled={readOnly} type="number" min="0" max="100" step="1" value={analytics.satisfactionBreakdown?.critical || 0} onChange={(event) => updateSentiment('critical', event.target.value)} /></AdminField>
+        </div>
+      </AdminSection>
 
-      <SaveBar dirty={dirty} onSave={() => onSave()} onReset={onReset} />
+      {!readOnly ? <AdminSaveBar dirty={dirty} onSave={onSave} onReset={onReset} saveLabel="Sauvegarder les analytics" /> : null}
+      {!readOnly ? (
+        <div className="step-actions">
+          <button type="button" className="button button--ghost" onClick={() => onChangeSection('analytics', defaultConfig.analytics)}>
+            Réinitialiser les analytics
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

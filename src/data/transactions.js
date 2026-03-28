@@ -1,4 +1,4 @@
-export const demoTransactions = [
+export const transactionSeed = [
   {
     id: 'TX-1042',
     date: '2026-03-25 14:20',

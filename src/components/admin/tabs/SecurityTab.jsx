@@ -1,141 +1,117 @@
-import { useState } from 'react';
-import { Field, SaveBar, SectionCard, ToggleRow } from '../AdminPrimitives';
+import { useMemo, useState } from 'react';
+import Badge from '../../Badge';
+import { hashValue } from '../../../utils/hash';
 import { formatDateTime } from '../../../utils/format';
-import { isEmail } from '../../../utils/storage';
-import { sha256 } from '../../../utils/hash';
+import { ADMIN_TABS } from '../adminTabs';
+import { AdminEmptyState, AdminField, AdminMetric, AdminSaveBar, AdminSection, AdminToggle } from '../AdminFormControls';
 
-export default function SecurityTab({ value, dirty, onChange, onSave, onReset }) {
-  const [credentials, setCredentials] = useState({
-    password: '',
-    passwordConfirm: '',
-    pin: '',
-    pinConfirm: '',
-    error: '',
-  });
+export default function SecurityTab({ data, dirty, onChangeSection, onSave, onReset, onLogout, onShowToast, readOnly = false }) {
+  const { security, adminAccess, adminLogs } = data;
+  const [newPin, setNewPin] = useState('');
 
-  async function handleSave() {
-    let error = '';
-    if (!isEmail(value.admin.username)) {
-      error = 'Identifiant admin invalide.';
-    } else if (credentials.password && credentials.password !== credentials.passwordConfirm) {
-      error = 'Les mots de passe ne correspondent pas.';
-    } else if (value.admin.pinEnabled && credentials.pin && credentials.pin !== credentials.pinConfirm) {
-      error = 'Les codes PIN ne correspondent pas.';
-    } else if (value.admin.pinEnabled && !value.admin.pinHash && !credentials.pin) {
-      error = 'Renseigne un PIN pour sécuriser les onglets sensibles.';
-    }
+  const connectionLogs = useMemo(
+    () => (adminLogs || []).filter((entry) => entry.action === 'login' || entry.action === 'logout').slice(0, 12),
+    [adminLogs],
+  );
 
-    if (error) {
-      setCredentials((current) => ({ ...current, error }));
-      return;
-    }
+  function updateSecurity(patch) {
+    onChangeSection('security', { ...security, ...patch });
+  }
 
-    const nextSecurity = {
-      ...value,
-      admin: {
-        ...value.admin,
-      },
-    };
+  function updateAdminAccess(patch) {
+    onChangeSection('adminAccess', { ...adminAccess, ...patch });
+  }
 
-    if (credentials.password) {
-      nextSecurity.admin.passwordHash = await sha256(credentials.password);
-      nextSecurity.admin.lastPasswordChange = new Date().toISOString();
-    }
+  async function applyPin() {
+    if (readOnly || !newPin.trim()) return;
+    const pinHash = await hashValue(newPin);
+    updateAdminAccess({ pinHash, pinEnabled: true });
+    setNewPin('');
+    onShowToast?.('Nouveau PIN secondaire préparé dans le brouillon.', 'success');
+  }
 
-    if (value.admin.pinEnabled && credentials.pin) {
-      nextSecurity.admin.pinHash = await sha256(credentials.pin);
-    }
-
-    if (!value.admin.pinEnabled) {
-      nextSecurity.admin.pinHash = '';
-    }
-
-    onChange(nextSecurity);
-    await onSave(nextSecurity);
-    setCredentials({ password: '', passwordConfirm: '', pin: '', pinConfirm: '', error: '' });
+  function togglePinProtectedTab(tabKey, checked) {
+    const nextTabs = checked
+      ? Array.from(new Set([...(adminAccess.pinProtectedTabs || []), tabKey]))
+      : (adminAccess.pinProtectedTabs || []).filter((item) => item !== tabKey);
+    updateAdminAccess({ pinProtectedTabs: nextTabs });
   }
 
   return (
     <div className="admin-stack">
-      <SectionCard eyebrow="Admin" title="Identifiants et protections admin" description="Le mot de passe et le PIN sont stockés hashés en localStorage.">
+      <div className="metric-grid metric-grid--4">
+        <AdminMetric label="PIN secondaire" value={adminAccess.pinEnabled ? 'Actif' : 'Désactivé'} helper="protection locale" tone={adminAccess.pinEnabled ? 'warning' : 'neutral'} />
+        <AdminMetric label="Tabs protégés" value={String((adminAccess.pinProtectedTabs || []).length)} helper="zones sensibles" tone="danger" />
+        <AdminMetric label="Maintenance" value={security.maintenanceMode ? 'On' : 'Off'} helper="site public" tone={security.maintenanceMode ? 'danger' : 'success'} />
+        <AdminMetric label="Login public" value={security.loginPageEnabled ? 'Ouvert' : 'Fermé'} helper="accès utilisateur" tone={security.loginPageEnabled ? 'success' : 'warning'} />
+      </div>
+
+      <AdminSection eyebrow="Accès sensible" title="PIN secondaire & sessions" description="Cette sécurité reste strictement locale au navigateur. Elle améliore l’ergonomie admin mais ne remplace pas une authentification serveur.">
+        <div className="field-grid field-grid--3">
+          <AdminField label="Nouveau PIN" hint="Le PIN est hashé avant stockage dans le navigateur.">
+            <div className="inline-field-action">
+              <input disabled={readOnly} type="password" inputMode="numeric" value={newPin} onChange={(event) => setNewPin(event.target.value)} />
+              {!readOnly ? <button type="button" className="button button--ghost button--sm" onClick={applyPin}>Mettre à jour</button> : null}
+            </div>
+          </AdminField>
+          <AdminField label="Durée de session (min)"><input disabled={readOnly} type="number" min="5" step="5" value={adminAccess.sessionTimeoutMinutes} onChange={(event) => updateAdminAccess({ sessionTimeoutMinutes: Number(event.target.value || 0) })} /></AdminField>
+          <div className="toggle-stack field--full">
+            <AdminToggle label="PIN secondaire activé" checked={adminAccess.pinEnabled} onChange={(checked) => updateAdminAccess({ pinEnabled: checked })} disabled={readOnly} />
+            <AdminToggle label="Laisser l’admin accessible pendant la maintenance" checked={adminAccess.allowAdminDuringMaintenance} onChange={(checked) => updateAdminAccess({ allowAdminDuringMaintenance: checked })} disabled={readOnly} />
+          </div>
+        </div>
+        <div className="permissions-grid">
+          {ADMIN_TABS.filter((tab) => tab.sensitive).map((tab) => (
+            <AdminToggle
+              key={tab.key}
+              label={`PIN requis — ${tab.label}`}
+              checked={(adminAccess.pinProtectedTabs || []).includes(tab.key)}
+              onChange={(checked) => togglePinProtectedTab(tab.key, checked)}
+              disabled={!adminAccess.pinEnabled || readOnly}
+            />
+          ))}
+        </div>
+      </AdminSection>
+
+      <AdminSection eyebrow="Public access" title="Login & maintenance" description="Contrôlez l’accès public au login et personnalisez l’état de maintenance du site.">
+        <div className="toggle-stack">
+          <AdminToggle label="Page login utilisateur accessible" checked={security.loginPageEnabled} onChange={(checked) => updateSecurity({ loginPageEnabled: checked })} disabled={readOnly} />
+          <AdminToggle label="Maintenance mode" checked={security.maintenanceMode} onChange={(checked) => updateSecurity({ maintenanceMode: checked })} disabled={readOnly} />
+        </div>
         <div className="field-grid field-grid--2">
-          <Field label="Identifiant admin" error={!isEmail(value.admin.username) ? 'Adresse email invalide.' : ''}>
-            <input value={value.admin.username} onChange={(event) => onChange({ ...value, admin: { ...value.admin, username: event.target.value } })} />
-          </Field>
-          <Field label="Dernier changement de mot de passe">
-            <input value={formatDateTime(value.admin.lastPasswordChange)} readOnly />
-          </Field>
-          <Field label="Nouveau mot de passe">
-            <input type="password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value, error: '' }))} placeholder="Laisser vide pour conserver" />
-          </Field>
-          <Field label="Confirmer le nouveau mot de passe">
-            <input type="password" value={credentials.passwordConfirm} onChange={(event) => setCredentials((current) => ({ ...current, passwordConfirm: event.target.value, error: '' }))} />
-          </Field>
-          <ToggleRow
-            label="Activer le PIN secondaire"
-            description="Un PIN est demandé pour ouvrir certains onglets sensibles du panel admin."
-            checked={value.admin.pinEnabled}
-            onChange={(checked) => onChange({ ...value, admin: { ...value.admin, pinEnabled: checked } })}
-          />
-          {value.admin.pinEnabled ? (
-            <>
-              <Field label="Nouveau PIN">
-                <input type="password" inputMode="numeric" value={credentials.pin} onChange={(event) => setCredentials((current) => ({ ...current, pin: event.target.value, error: '' }))} />
-              </Field>
-              <Field label="Confirmer le PIN">
-                <input type="password" inputMode="numeric" value={credentials.pinConfirm} onChange={(event) => setCredentials((current) => ({ ...current, pinConfirm: event.target.value, error: '' }))} />
-              </Field>
-            </>
-          ) : null}
-          {credentials.error ? <p className="field__error field__error--inline">{credentials.error}</p> : null}
+          <AdminField label="Titre maintenance"><input disabled={readOnly} value={security.maintenanceTitle} onChange={(event) => updateSecurity({ maintenanceTitle: event.target.value })} /></AdminField>
+          <AdminField label="Message maintenance" className="field--full"><textarea disabled={readOnly} value={security.maintenanceMessage} onChange={(event) => updateSecurity({ maintenanceMessage: event.target.value })} /></AdminField>
         </div>
-      </SectionCard>
+      </AdminSection>
 
-      <SectionCard eyebrow="Accès" title="Login utilisateur et maintenance" description="Contrôle l’accès public et le message affiché en cas de maintenance.">
-        <ToggleRow
-          label="Page Login publique active"
-          description="Si désactivé, seul le login admin connu reste utilisable."
-          checked={value.loginPageEnabled}
-          onChange={(checked) => onChange({ ...value, loginPageEnabled: checked })}
-        />
-        <ToggleRow
-          label="Maintenance mode"
-          description="Les pages publiques affichent un écran de maintenance tant que ce mode est actif."
-          checked={value.maintenanceMode}
-          onChange={(checked) => onChange({ ...value, maintenanceMode: checked })}
-        />
-        <div className="field-grid field-grid--2">
-          <Field label="Titre maintenance">
-            <input value={value.maintenanceTitle} onChange={(event) => onChange({ ...value, maintenanceTitle: event.target.value })} />
-          </Field>
-          <Field className="field--full" label="Message maintenance">
-            <textarea rows="3" value={value.maintenanceMessage} onChange={(event) => onChange({ ...value, maintenanceMessage: event.target.value })} />
-          </Field>
+      <AdminSection eyebrow="Historique" title="Connexions admin récentes" description="Vue rapide des ouvertures / fermetures de session localement enregistrées." actions={!readOnly ? <button type="button" className="button button--ghost button--sm" onClick={() => onChangeSection('adminLogs', [])}>Vider les logs</button> : null}>
+        {connectionLogs.length ? (
+          <div className="list-stack">
+            {connectionLogs.map((entry) => (
+              <div key={entry.id} className="list-row list-row--panel">
+                <div className="list-row__main">
+                  <div className="list-row__head">
+                    <div className="inline-badges">
+                      <Badge tone={entry.action === 'login' ? 'success' : 'neutral'}>{entry.action}</Badge>
+                      <Badge tone="neutral">{entry.role || 'admin'}</Badge>
+                    </div>
+                    <strong>{entry.name || entry.email || 'Admin'}</strong>
+                    <span>{formatDateTime(entry.at)}</span>
+                  </div>
+                  {entry.detail ? <p className="muted">{entry.detail}</p> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <AdminEmptyState title="Aucune connexion récente" description="Les prochaines ouvertures et fermetures de session apparaîtront ici." />
+        )}
+        <div className="step-actions">
+          <button type="button" className="button button--ghost" onClick={onLogout}>Déconnexion admin</button>
         </div>
-      </SectionCard>
+      </AdminSection>
 
-      <SectionCard eyebrow="Historique" title="Dernières connexions admin" description="Les entrées sont ajoutées automatiquement après chaque connexion réussie.">
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Date / heure</th>
-                <th>Compte</th>
-              </tr>
-            </thead>
-            <tbody>
-              {value.adminLoginHistory.map((entry) => (
-                <tr key={entry.id}>
-                  <td>{formatDateTime(entry.at)}</td>
-                  <td>{entry.email}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
-
-      <SaveBar dirty={dirty} onSave={handleSave} onReset={onReset} />
+      {!readOnly ? <AdminSaveBar dirty={dirty} onSave={onSave} onReset={onReset} saveLabel="Sauvegarder la sécurité" /> : null}
     </div>
   );
 }
