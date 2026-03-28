@@ -1,19 +1,20 @@
 export const STORAGE_KEYS = {
   config: 'app_config_v1',
-  users: 'app_users_v1',
+  users: 'app_users_v2',
   transactions: 'app_transactions_v1',
   notifications: 'app_notifications_v1',
   adminAccess: 'app_admin_access_v1',
   adminLogs: 'app_admin_logs_v1',
-  admins: 'app_admins_v1',
+  admins: 'app_admins_v2',
   reviews: 'app_reviews_v1',
   objectives: 'app_objectives_v1',
   analytics: 'app_analytics_v1',
   trustIndicators: 'app_trust_indicators_v1',
-  session: 'app_session_v1',
-  guestSession: 'app_guest_session_v1',
+  session: 'app_session_v2',
+  guestSession: 'app_guest_session_v2',
   uiPrefs: 'app_ui_prefs_v1',
   adminDraft: 'app_admin_draft_v1',
+  passwordResetRequests: 'app_password_reset_requests_v2',
 };
 
 export function isPlainObject(value) {

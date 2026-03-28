@@ -117,6 +117,15 @@ export const ADMIN_TABS = [
     editPermission: 'adminsEdit',
   },
   {
+    key: 'passwordResets',
+    label: 'Password resets',
+    description: 'Demandes de réinitialisation, traitement support et mots de passe temporaires.',
+    sectionKeys: ['passwordResets', 'users', 'admins'],
+    sensitive: true,
+    viewPermission: 'passwordResetsView',
+    editPermission: 'passwordResetsEdit',
+  },
+  {
     key: 'security',
     label: 'Sécurité & accès',
     description: 'PIN secondaire, maintenance, accès admin, sessions locales et historique.',

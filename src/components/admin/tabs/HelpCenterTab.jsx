@@ -24,9 +24,10 @@ export default function HelpCenterTab({ data, onOpenTab }) {
     { title: 'Configurer le branding', text: 'Définissez site name, logo, favicon, couleurs et trust bar avant toute autre étape.', target: 'branding' },
     { title: 'Brancher les paiements', text: 'Renseignez PayPal, Paysafecard et les wallets réseau avant d’ouvrir les flows.', target: 'payments' },
     { title: 'Vérifier les règles exchange', text: 'Ajustez frais, min/max, combinaisons et messages pour éviter les parcours confus.', target: 'exchangeRules' },
-    { title: 'Préparer FR / EN', text: 'Complétez le contenu bilingue pour une UX propre sur la landing, le login et le dashboard.', target: 'content' },
+    { title: 'Préparer FR / EN', text: 'Complétez le contenu bilingue pour une UX propre sur l’accueil, le login et les transactions.', target: 'content' },
     { title: 'Organiser les rôles admin', text: 'Ajoutez les comptes secondaires et attribuez le bon niveau de permission.', target: 'adminsRoles' },
     { title: 'Surveiller sécurité & maintenance', text: 'Activez le PIN, définissez les tabs sensibles et contrôlez la maintenance.', target: 'security' },
+    { title: 'Traiter les mots de passe oubliés', text: 'Suivez les demandes de réinitialisation et attribuez un mot de passe temporaire sans jamais afficher l’ancien.', target: 'passwordResets' },
   ];
 
   return (

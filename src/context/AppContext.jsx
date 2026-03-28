@@ -9,10 +9,19 @@ import {
   resetStorageItem,
   setStorageItem,
   generateId,
-  generateGuestId,
   normalizeLanguage,
   validateEmail,
 } from '../utils/storage';
+import {
+  buildAdminSession,
+  buildGuestSession,
+  buildPasswordResetRequest,
+  buildUserRecord,
+  buildUserSession,
+  generateTemporaryPassword,
+  isUserLoginAllowed,
+  normalizeEmail,
+} from '../utils/auth';
 import { buildReference, buildTransactionRecord, updateAnalyticsWithTransaction } from '../utils/exchange';
 
 const CONFIG_SECTIONS = [
@@ -60,6 +69,10 @@ const GUEST_PROFILE_DEFAULT = {
   status: 'ready',
 };
 
+const PASSWORD_RESETS_DEFAULT = {
+  items: [],
+};
+
 const AppContext = createContext(null);
 
 function updateDocumentBranding(appData, language) {
@@ -98,22 +111,82 @@ function resolveAdminPermissions(admin, appData) {
   };
 }
 
+function getLocaleContent(contentByLanguage, language) {
+  const normalized = normalizeLanguage(language);
+  return contentByLanguage?.[normalized] || contentByLanguage?.fr || {};
+}
+
+function normalizeUsers(users = []) {
+  return users.map((user) => ({
+    role: 'user',
+    status: 'Actif',
+    balance: 0,
+    kyc: 'Non vérifié',
+    tag: 'Standard',
+    notes: '',
+    passwordHash: '',
+    ...user,
+  }));
+}
+
+function normalizeAdmins(admins = [], appData) {
+  return admins.map((admin) => ({
+    ...admin,
+    permissions: resolveAdminPermissions(admin, appData),
+  }));
+}
+
+function mergeAdminsWithDefaults(storedAdmins = [], appData) {
+  const storedMap = new Map((storedAdmins || []).map((admin) => [normalizeEmail(admin.email), admin]));
+  const mergedAdmins = (defaultConfig.admins || []).map((defaultAdmin) => {
+    const storedAdmin = storedMap.get(normalizeEmail(defaultAdmin.email));
+    return {
+      ...defaultAdmin,
+      ...(storedAdmin || {}),
+    };
+  });
+
+  (storedAdmins || []).forEach((admin) => {
+    const exists = mergedAdmins.some((item) => normalizeEmail(item.email) === normalizeEmail(admin.email));
+    if (!exists) {
+      mergedAdmins.push(admin);
+    }
+  });
+
+  return normalizeAdmins(mergedAdmins, appData);
+}
+
+function removeAdminEmailsFromUsers(users = [], admins = []) {
+  const adminEmails = new Set((admins || []).map((admin) => normalizeEmail(admin.email)));
+  return normalizeUsers(users).filter((user) => !adminEmails.has(normalizeEmail(user.email)));
+}
+
 function buildInitialData() {
   const configDefaults = pickSections(defaultConfig, CONFIG_SECTIONS);
   const baseConfig = getStorageItem(STORAGE_KEYS.config, configDefaults);
-  return {
+  const merged = {
     ...cloneValue(defaultConfig),
     ...baseConfig,
-    users: getStorageItem(STORAGE_KEYS.users, defaultConfig.users),
+  };
+
+  const storedAdmins = getStorageItem(STORAGE_KEYS.admins, defaultConfig.admins);
+  const admins = mergeAdminsWithDefaults(storedAdmins, merged);
+  const storedUsers = getStorageItem(STORAGE_KEYS.users, defaultConfig.users);
+  const users = removeAdminEmailsFromUsers(storedUsers, admins);
+
+  return {
+    ...merged,
+    users,
     transactions: getStorageItem(STORAGE_KEYS.transactions, defaultConfig.transactions),
     notifications: getStorageItem(STORAGE_KEYS.notifications, defaultConfig.notifications),
     analytics: getStorageItem(STORAGE_KEYS.analytics, defaultConfig.analytics),
     objectives: getStorageItem(STORAGE_KEYS.objectives, defaultConfig.objectives),
     reviews: getStorageItem(STORAGE_KEYS.reviews, defaultConfig.reviews),
-    admins: getStorageItem(STORAGE_KEYS.admins, defaultConfig.admins),
+    admins,
     adminLogs: getStorageItem(STORAGE_KEYS.adminLogs, defaultConfig.adminLogs),
     trustIndicators: getStorageItem(STORAGE_KEYS.trustIndicators, defaultConfig.trustIndicators),
     adminAccess: getStorageItem(STORAGE_KEYS.adminAccess, defaultConfig.adminAccess),
+    passwordResets: getStorageItem(STORAGE_KEYS.passwordResetRequests, defaultConfig.passwordResets || PASSWORD_RESETS_DEFAULT),
   };
 }
 
@@ -129,11 +202,17 @@ function persistData(appData) {
   setStorageItem(STORAGE_KEYS.adminLogs, appData.adminLogs);
   setStorageItem(STORAGE_KEYS.trustIndicators, appData.trustIndicators);
   setStorageItem(STORAGE_KEYS.adminAccess, appData.adminAccess);
+  setStorageItem(STORAGE_KEYS.passwordResetRequests, appData.passwordResets || PASSWORD_RESETS_DEFAULT);
 }
 
-function getLocaleContent(contentByLanguage, language) {
-  const normalized = normalizeLanguage(language);
-  return contentByLanguage?.[normalized] || contentByLanguage?.fr || {};
+function findUserByEmail(appData, email) {
+  const normalizedEmail = normalizeEmail(email);
+  return (appData.users || []).find((user) => normalizeEmail(user.email) === normalizedEmail) || null;
+}
+
+function findAdminByEmail(appData, email) {
+  const normalizedEmail = normalizeEmail(email);
+  return (appData.admins || []).find((admin) => normalizeEmail(admin.email) === normalizedEmail && admin.status === 'active') || null;
 }
 
 export function AppProvider({ children }) {
@@ -199,7 +278,7 @@ export function AppProvider({ children }) {
 
     setAppData((current) => ({
       ...current,
-      adminLogs: [entry, ...(current.adminLogs || [])].slice(0, 250),
+      adminLogs: [entry, ...(current.adminLogs || [])].slice(0, 400),
     }));
     return entry;
   }
@@ -238,10 +317,19 @@ export function AppProvider({ children }) {
   function resetAppData() {
     setAppData(cloneValue(defaultConfig));
     setGuestProfile(GUEST_PROFILE_DEFAULT);
-    Object.entries(STORAGE_KEYS).forEach(([name, key]) => {
-      if (name === 'session' || name === 'adminDraft') return;
-      resetStorageItem(key, defaultConfig[name] ?? (name === 'guestSession' ? GUEST_PROFILE_DEFAULT : undefined));
-    });
+    resetStorageItem(STORAGE_KEYS.config, pickSections(defaultConfig, CONFIG_SECTIONS));
+    resetStorageItem(STORAGE_KEYS.users, defaultConfig.users);
+    resetStorageItem(STORAGE_KEYS.transactions, defaultConfig.transactions);
+    resetStorageItem(STORAGE_KEYS.notifications, defaultConfig.notifications);
+    resetStorageItem(STORAGE_KEYS.analytics, defaultConfig.analytics);
+    resetStorageItem(STORAGE_KEYS.objectives, defaultConfig.objectives);
+    resetStorageItem(STORAGE_KEYS.reviews, defaultConfig.reviews);
+    resetStorageItem(STORAGE_KEYS.admins, defaultConfig.admins);
+    resetStorageItem(STORAGE_KEYS.adminLogs, defaultConfig.adminLogs);
+    resetStorageItem(STORAGE_KEYS.trustIndicators, defaultConfig.trustIndicators);
+    resetStorageItem(STORAGE_KEYS.adminAccess, defaultConfig.adminAccess);
+    resetStorageItem(STORAGE_KEYS.guestSession, GUEST_PROFILE_DEFAULT);
+    resetStorageItem(STORAGE_KEYS.passwordResetRequests, defaultConfig.passwordResets || PASSWORD_RESETS_DEFAULT);
     resetStorageItem(STORAGE_KEYS.session, SESSION_DEFAULT);
     setAuth(SESSION_DEFAULT);
   }
@@ -285,99 +373,104 @@ export function AppProvider({ children }) {
     setThemeMode(appData.theme.mode === 'light' ? 'dark' : 'light');
   }
 
-  async function loginAdmin(email, password) {
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    if (!normalizedEmail || !password) {
-      return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.errorMessage || 'Accès refusé.' };
+  async function loginAccount(email, password) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!validateEmail(normalizedEmail) || !String(password || '').trim()) {
+      return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.errorMessage || 'Connexion refusée.' };
     }
 
-    const admin = (appData.admins || []).find((item) => item.email.toLowerCase() === normalizedEmail && item.status === 'active');
-    if (!admin) {
-      return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.errorMessage || 'Accès refusé.' };
+    const admin = findAdminByEmail(appData, normalizedEmail);
+    if (admin) {
+      const passwordHash = await hashValue(password);
+      if (passwordHash !== admin.passwordHash) {
+        return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.errorMessage || 'Connexion refusée.' };
+      }
+
+      const permissions = resolveAdminPermissions(admin, appData);
+      const session = buildAdminSession({ admin, permissions, pinEnabled: appData.adminAccess.pinEnabled });
+      setAuth(session);
+      setAppData((current) => ({
+        ...current,
+        admins: current.admins.map((item) => (item.id === admin.id ? { ...item, lastLogin: new Date().toISOString() } : item)),
+      }));
+      recordAdminLog({
+        action: 'login',
+        section: 'security',
+        detail: 'Ouverture de session administrateur',
+        severity: 'info',
+        adminOverride: admin,
+      });
+      showToast(`${admin.name} connecté.`, 'success');
+      return { ok: true, role: 'admin' };
+    }
+
+    const user = findUserByEmail(appData, normalizedEmail);
+    if (!user || !isUserLoginAllowed(user)) {
+      return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.userErrorMessage || 'Aucun compte correspondant.' };
     }
 
     const passwordHash = await hashValue(password);
-    const isValid = passwordHash === admin.passwordHash;
-    if (!isValid) {
-      return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.errorMessage || 'Accès refusé.' };
+    if (!user.passwordHash || passwordHash !== user.passwordHash) {
+      return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.errorMessage || 'Connexion refusée.' };
     }
 
-    const permissions = resolveAdminPermissions(admin, appData);
-    setAuth({
-      loggedIn: true,
-      sessionType: 'admin',
-      role: 'admin',
-      adminRole: admin.role,
-      email: normalizedEmail,
-      userId: 'admin',
-      adminId: admin.id,
-      name: admin.name,
-      pinVerified: !appData.adminAccess.pinEnabled,
-      permissions,
-      isGuest: false,
-    });
-
+    const session = buildUserSession({ user });
+    setAuth(session);
     setAppData((current) => ({
       ...current,
-      admins: current.admins.map((item) => (item.id === admin.id ? { ...item, lastLogin: new Date().toISOString() } : item)),
+      users: current.users.map((item) => (
+        item.id === user.id
+          ? { ...item, lastLogin: new Date().toISOString(), lastActivity: new Date().toISOString() }
+          : item
+      )),
     }));
-
-    recordAdminLog({
-      action: 'login',
-      section: 'security',
-      detail: 'Ouverture de session administrateur',
-      severity: 'info',
-      adminOverride: admin,
-    });
-    showToast(`Session ${resolveRoleDefinition(admin.role, appData)?.label || 'admin'} ouverte.`, 'success');
-    return { ok: true };
+    showToast(`${session.name} connecté.`, 'success');
+    return { ok: true, role: 'user' };
   }
 
-  function loginUser(email) {
-    if (!appData.security.loginPageEnabled) {
-      return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.disabledMessage };
-    }
-    const normalizedEmail = String(email || '').trim().toLowerCase();
+  async function loginAdmin(email, password) {
+    const result = await loginAccount(email, password);
+    return result.role === 'admin' ? result : { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.errorMessage || 'Connexion refusée.' };
+  }
+
+  async function loginUser(email, password = '') {
+    const result = await loginAccount(email, password);
+    return result.role === 'user' ? result : { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.userErrorMessage || 'Aucun compte correspondant.' };
+  }
+
+  async function registerAccount({ email, password, displayName = '' }) {
+    const normalizedEmail = normalizeEmail(email);
     if (!validateEmail(normalizedEmail)) {
-      return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.userErrorMessage };
+      return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.userErrorMessage || 'Adresse email invalide.' };
     }
-    const user = appData.users.find((item) => item.email.toLowerCase() === normalizedEmail);
-    if (!user) {
-      return { ok: false, message: getLocaleContent(appData.content, appData.ui.language).login?.userErrorMessage };
+    if (!String(password || '').trim()) {
+      return { ok: false, message: normalizeLanguage(appData.ui.language) === 'fr' ? 'Veuillez saisir un mot de passe.' : 'Please enter a password.' };
     }
-    setAuth({
-      loggedIn: true,
-      sessionType: 'user',
-      role: 'user',
-      adminRole: '',
-      email: user.email,
-      userId: user.id,
-      adminId: '',
-      name: user.name,
-      pinVerified: false,
-      permissions: {},
-      isGuest: false,
-    });
-    showToast(`Bienvenue ${user.name}.`, 'success');
-    return { ok: true };
+    if (findUserByEmail(appData, normalizedEmail) || findAdminByEmail(appData, normalizedEmail)) {
+      return { ok: false, message: normalizeLanguage(appData.ui.language) === 'fr' ? 'Un compte existe déjà avec cette adresse email.' : 'An account already exists with this email address.' };
+    }
+
+    const user = await buildUserRecord({ email: normalizedEmail, password, displayName });
+    setAppData((current) => ({
+      ...current,
+      users: [user, ...current.users],
+      trustIndicators: {
+        ...current.trustIndicators,
+        activeUsers: Number(current.trustIndicators.activeUsers || 0) + 1,
+      },
+    }));
+    setAuth(buildUserSession({ user }));
+    showToast(normalizeLanguage(appData.ui.language) === 'fr' ? 'Compte créé avec succès.' : 'Account created successfully.', 'success');
+    return { ok: true, role: 'user', user };
   }
 
   function continueAsGuest(patch = {}) {
-    const now = new Date().toISOString();
-    const nextProfile = {
-      ...GUEST_PROFILE_DEFAULT,
-      active: true,
-      guestId: guestProfile.guestId || generateGuestId(),
-      createdAt: guestProfile.createdAt || now,
-      updatedAt: now,
-      displayName: patch.displayName || guestProfile.displayName || 'Guest',
-      preferredLanguage: normalizeLanguage(patch.preferredLanguage || guestProfile.preferredLanguage || appData.ui.language),
-      preferredTheme: patch.preferredTheme || guestProfile.preferredTheme || appData.theme.mode,
-      transactionsCount: guestProfile.transactionsCount || 0,
-      optionalContactMethod: patch.optionalContactMethod ?? guestProfile.optionalContactMethod,
-      optionalContactValue: patch.optionalContactValue ?? guestProfile.optionalContactValue,
-      status: 'active',
-    };
+    const nextProfile = buildGuestSession({
+      currentProfile: guestProfile,
+      language: patch.preferredLanguage || appData.ui.language,
+      theme: patch.preferredTheme || appData.theme.mode,
+      displayName: patch.displayName || (normalizeLanguage(appData.ui.language) === 'fr' ? 'Invité' : 'Guest'),
+    });
     setGuestProfile(nextProfile);
     setAuth({
       loggedIn: true,
@@ -392,12 +485,6 @@ export function AppProvider({ children }) {
       permissions: {},
       isGuest: true,
     });
-    if (nextProfile.preferredLanguage !== appData.ui.language) {
-      setLanguage(nextProfile.preferredLanguage);
-    }
-    if (nextProfile.preferredTheme !== appData.theme.mode) {
-      setThemeMode(nextProfile.preferredTheme);
-    }
     showToast(getLocaleContent(appData.content, appData.ui.language).login?.guestSubtitle || 'Session invitée ouverte.', 'success');
     return nextProfile;
   }
@@ -407,6 +494,93 @@ export function AppProvider({ children }) {
       ...current,
       ...patch,
       updatedAt: new Date().toISOString(),
+    }));
+  }
+
+  async function requestPasswordReset(email) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!validateEmail(normalizedEmail)) {
+      return { ok: false, message: normalizeLanguage(appData.ui.language) === 'fr' ? 'Veuillez saisir une adresse email valide.' : 'Please enter a valid email address.' };
+    }
+
+    const accountExists = Boolean(findUserByEmail(appData, normalizedEmail) || findAdminByEmail(appData, normalizedEmail));
+    const request = buildPasswordResetRequest(normalizedEmail, accountExists);
+    setAppData((current) => ({
+      ...current,
+      passwordResets: {
+        items: [request, ...(current.passwordResets?.items || [])].slice(0, 200),
+      },
+    }));
+    showToast(
+      normalizeLanguage(appData.ui.language) === 'fr'
+        ? 'Votre demande a été transmise au support.'
+        : 'Your request has been forwarded to support.',
+      'info',
+      4200,
+    );
+    return { ok: true, request };
+  }
+
+  async function resolvePasswordResetRequest(requestId, tempPassword, adminMeta = null) {
+    const request = (appData.passwordResets?.items || []).find((item) => item.id === requestId);
+    if (!request) {
+      return { ok: false, message: 'Demande introuvable.' };
+    }
+
+    const generatedPassword = String(tempPassword || '').trim() || generateTemporaryPassword();
+    const temporaryPasswordHash = await hashValue(generatedPassword);
+    const handledBy = adminMeta?.email || auth.email || '';
+    const handledAt = new Date().toISOString();
+
+    setAppData((current) => {
+      const nextUsers = current.users.map((user) => (
+        normalizeEmail(user.email) === request.email
+          ? { ...user, passwordHash: temporaryPasswordHash, lastActivity: handledAt }
+          : user
+      ));
+      const nextAdmins = current.admins.map((admin) => (
+        normalizeEmail(admin.email) === request.email
+          ? { ...admin, passwordHash: temporaryPasswordHash }
+          : admin
+      ));
+      const nextRequests = (current.passwordResets?.items || []).map((item) => (
+        item.id === requestId
+          ? {
+              ...item,
+              status: 'resolved',
+              handledBy,
+              handledAt,
+              temporaryPasswordHash,
+            }
+          : item
+      ));
+
+      return {
+        ...current,
+        users: nextUsers,
+        admins: nextAdmins,
+        passwordResets: { items: nextRequests },
+      };
+    });
+
+    if (auth.role === 'admin') {
+      recordAdminLog({
+        action: 'resolve-reset',
+        section: 'passwordResets',
+        detail: `Réinitialisation traitée pour ${request.email}`,
+        severity: 'warning',
+      });
+    }
+
+    return { ok: true, temporaryPassword: generatedPassword };
+  }
+
+  function removePasswordResetRequest(requestId) {
+    setAppData((current) => ({
+      ...current,
+      passwordResets: {
+        items: (current.passwordResets?.items || []).filter((item) => item.id !== requestId),
+      },
     }));
   }
 
@@ -433,7 +607,7 @@ export function AppProvider({ children }) {
       });
     }
     setAuth(SESSION_DEFAULT);
-    showToast('Session fermée.', 'info');
+    showToast(normalizeLanguage(appData.ui.language) === 'fr' ? 'Session fermée.' : 'Signed out.', 'info');
   }
 
   function can(permission) {
@@ -442,10 +616,36 @@ export function AppProvider({ children }) {
   }
 
   function submitExchangeRequest({ flowKey, assetSymbol, recipient, amountInput, reference }) {
+    let sessionForTransaction = auth;
+
+    if (!auth.loggedIn && appData.guestSession.enabled) {
+      const nextProfile = buildGuestSession({
+        currentProfile: guestProfile,
+        language: appData.ui.language,
+        theme: appData.theme.mode,
+        displayName: normalizeLanguage(appData.ui.language) === 'fr' ? 'Invité' : 'Guest',
+      });
+      setGuestProfile(nextProfile);
+      sessionForTransaction = {
+        loggedIn: true,
+        sessionType: 'guest',
+        role: 'guest',
+        adminRole: '',
+        email: '',
+        userId: nextProfile.guestId,
+        adminId: '',
+        name: nextProfile.displayName,
+        pinVerified: false,
+        permissions: {},
+        isGuest: true,
+      };
+      setAuth(sessionForTransaction);
+    }
+
     const finalReference = reference || buildReference(appData);
     const transaction = buildTransactionRecord({
       appData,
-      auth,
+      auth: sessionForTransaction,
       flowKey,
       assetSymbol,
       recipient,
@@ -462,12 +662,19 @@ export function AppProvider({ children }) {
         monthlyVolume: Number(current.trustIndicators.monthlyVolume || 0) + Number(transaction.amountGross || 0),
         totalTransactions: Number(current.trustIndicators.totalTransactions || 0) + 1,
       },
+      users: current.users.map((user) => (
+        normalizeEmail(user.email) === normalizeEmail(sessionForTransaction.email)
+          ? { ...user, lastActivity: transaction.date }
+          : user
+      )),
     }));
 
-    if (auth.isGuest) {
+    if (sessionForTransaction.isGuest) {
       setGuestProfile((current) => ({
         ...current,
         active: true,
+        guestId: sessionForTransaction.userId,
+        displayName: current.displayName || sessionForTransaction.name,
         transactionsCount: Number(current.transactionsCount || 0) + 1,
         updatedAt: new Date().toISOString(),
       }));
@@ -481,12 +688,12 @@ export function AppProvider({ children }) {
   const copy = useMemo(() => getLocaleContent(appData.content, language), [appData.content, language]);
 
   const currentUser = useMemo(
-    () => appData.users.find((user) => user.email.toLowerCase() === String(auth.email || '').toLowerCase()) || null,
-    [appData.users, auth.email],
+    () => findUserByEmail(appData, auth.email) || null,
+    [appData, auth.email],
   );
 
   const currentAdmin = useMemo(
-    () => appData.admins.find((admin) => admin.id === auth.adminId || admin.email.toLowerCase() === String(auth.email || '').toLowerCase()) || null,
+    () => appData.admins.find((admin) => admin.id === auth.adminId || normalizeEmail(admin.email) === normalizeEmail(auth.email)) || null,
     [appData.admins, auth.adminId, auth.email],
   );
 
@@ -496,8 +703,13 @@ export function AppProvider({ children }) {
   );
 
   const visibleReviews = useMemo(
-    () => (appData.reviews || []).filter((review) => review.language === language || review.language === 'all' || !review.language),
+    () => (appData.reviews || []).filter((review) => review.visible !== false && (review.language === language || review.language === 'all' || !review.language)),
     [appData.reviews, language],
+  );
+
+  const pendingPasswordResets = useMemo(
+    () => (appData.passwordResets?.items || []).filter((item) => item.status === 'pending'),
+    [appData.passwordResets],
   );
 
   const value = useMemo(
@@ -519,8 +731,13 @@ export function AppProvider({ children }) {
       setLanguage,
       setThemeMode,
       toggleTheme,
+      loginAccount,
       loginAdmin,
       loginUser,
+      registerAccount,
+      requestPasswordReset,
+      resolvePasswordResetRequest,
+      removePasswordResetRequest,
       continueAsGuest,
       updateGuestProfile,
       verifyPin,
@@ -531,6 +748,7 @@ export function AppProvider({ children }) {
       currentAdmin,
       featuredReviews,
       visibleReviews,
+      pendingPasswordResets,
       recordAdminLog,
       resolveAdminPermissions: (admin) => resolveAdminPermissions(admin, appData),
       resolveRoleDefinition: (roleKey) => resolveRoleDefinition(roleKey, appData),
@@ -547,6 +765,7 @@ export function AppProvider({ children }) {
       currentAdmin,
       featuredReviews,
       visibleReviews,
+      pendingPasswordResets,
     ],
   );
 

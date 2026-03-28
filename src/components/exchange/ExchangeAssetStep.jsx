@@ -9,7 +9,7 @@ export default function ExchangeAssetStep({ assets, value, onChange, error, onBa
         <div>
           <p className="eyebrow">{language === 'fr' ? 'Actif' : 'Asset'}</p>
           <h3>{language === 'fr' ? 'Sélectionnez la crypto' : 'Select the asset'}</h3>
-          <p className="muted">{language === 'fr' ? 'Les actifs visibles dans cette étape dépendent du marché, des wallets configurés et des règles d’échange.' : 'Visible assets depend on market visibility, configured wallets and exchange rules.'}</p>
+          <p className="muted">{language === 'fr' ? 'Sélectionnez la crypto que vous souhaitez recevoir ou envoyer sur ce flux.' : 'Select the crypto you want to receive or send on this route.'}</p>
         </div>
       </div>
 

@@ -1,9 +1,7 @@
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import ExchangePage from './pages/ExchangePage';
-import MarketPage from './pages/MarketPage';
-import DashboardPage from './pages/DashboardPage';
 import TransactionsPage from './pages/TransactionsPage';
 import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
@@ -15,11 +13,12 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/exchange" element={<ExchangePage />} />
-        <Route path="/market" element={<MarketPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/transactions" element={<TransactionsPage />} />
+        <Route path="/secure-access" element={<AdminPage />} />
+        <Route path="/market" element={<Navigate to="/" replace />} />
+        <Route path="/dashboard" element={<Navigate to="/transactions" replace />} />
+        <Route path="/admin" element={<NotFoundPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

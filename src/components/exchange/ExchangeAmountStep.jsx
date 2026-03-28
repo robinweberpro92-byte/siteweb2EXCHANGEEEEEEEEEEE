@@ -11,7 +11,7 @@ export default function ExchangeAmountStep({ appData, flow, asset, value, onChan
         <div>
           <p className="eyebrow">{language === 'fr' ? 'Montant' : 'Amount'}</p>
           <h3>{flow.amountLabel}</h3>
-          <p className="muted">{language === 'fr' ? `Le minimum et le maximum sont contrôlés à partir de la valeur notifiée en ${appData.exchange.primaryCurrency}.` : `Minimum and maximum checks are based on the notified ${appData.exchange.primaryCurrency} value.`}</p>
+          <p className="muted">{language === 'fr' ? `Le montant net estimé est recalculé immédiatement en ${appData.exchange.primaryCurrency}.` : `The estimated net amount is updated instantly in ${appData.exchange.primaryCurrency}.`}</p>
         </div>
       </div>
 

@@ -5,6 +5,9 @@ import { compact, formatNumber } from '../utils/format';
 export default function Footer() {
   const { config, language } = useApp();
   const { footer, socialLinks, branding, payments, trustIndicators } = config;
+  const footerText = typeof footer.text === 'object'
+    ? footer.text[language] || footer.text.fr || ''
+    : (language === 'fr' ? footer.text : 'Clyra Exchange keeps crypto and payment swaps simple with clear steps, visible fees and readable tracking.');
 
   return (
     <footer className="footer-shell">
@@ -17,7 +20,7 @@ export default function Footer() {
               <span>{branding.tagline}</span>
             </div>
           </div>
-          <p>{footer.text}</p>
+          <p>{footerText}</p>
           <div className="footer-mini-stats">
             <div><span>{language === 'fr' ? 'Volume' : 'Volume'}</span><strong>{compact(trustIndicators.monthlyVolume, language)}</strong></div>
             <div><span>{language === 'fr' ? 'Avis' : 'Reviews'}</span><strong>{formatNumber(trustIndicators.reviewCount, 0, language)}</strong></div>

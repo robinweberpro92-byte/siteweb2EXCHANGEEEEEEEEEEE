@@ -32,7 +32,7 @@ export default function ReviewsSection({ limit = 6, compact = false, title, subt
         <div className="reviews-summary">
           <StarRating rating={config.trustIndicators.averageRating} compact />
           <strong>{config.trustIndicators.averageRating.toFixed(1)}/5</strong>
-          <span>{config.trustIndicators.reviewCount.toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US')} reviews</span>
+          <span>{config.trustIndicators.reviewCount.toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US')} {language === 'fr' ? 'avis' : 'reviews'}</span>
         </div>
       </div>
 
@@ -49,7 +49,7 @@ export default function ReviewsSection({ limit = 6, compact = false, title, subt
                   <span>{review.role}</span>
                 </div>
               </div>
-              {review.verified ? <Badge tone="success">Verified</Badge> : null}
+              {review.verified ? <Badge tone="success">{language === 'fr' ? 'Vérifié' : 'Verified'}</Badge> : null}
             </div>
             <StarRating rating={review.rating} compact />
             <p>{review.text}</p>

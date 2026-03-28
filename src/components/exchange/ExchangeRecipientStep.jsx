@@ -8,7 +8,7 @@ export default function ExchangeRecipientStep({ flow, value, onChange, error, on
         <div>
           <p className="eyebrow">{language === 'fr' ? 'Destination' : 'Destination'}</p>
           <h3>{flow.recipientLabel}</h3>
-          <p className="muted">{language === 'fr' ? 'Cette information est utilisée dans le récapitulatif final et dans le suivi de transaction.' : 'This information is reused in the final summary and transaction tracking.'}</p>
+          <p className="muted">{language === 'fr' ? 'Cette destination restera visible jusqu’à la confirmation finale.' : 'This destination will remain visible until final confirmation.'}</p>
         </div>
       </div>
 

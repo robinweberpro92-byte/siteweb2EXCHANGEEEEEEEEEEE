@@ -3,6 +3,7 @@ import Badge from '../../Badge';
 import { AdminEmptyState, AdminField, AdminMetric, AdminSaveBar, AdminSection } from '../AdminFormControls';
 import { euro, formatDateTime, statusTone } from '../../../utils/format';
 import { generateId, validateEmail } from '../../../utils/storage';
+import { hashValue } from '../../../utils/hash';
 
 const STATUS_OPTIONS = ['Actif', 'Suspendu', 'Vérifié'];
 const KYC_OPTIONS = ['Non vérifié', 'En cours', 'Vérifié'];
@@ -13,7 +14,7 @@ export default function UsersTab({ data, dirty, onChangeSection, onSave, onReset
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [kycFilter, setKycFilter] = useState('all');
-  const [newUser, setNewUser] = useState({ name: '', email: '', balance: 0, status: 'Actif', kyc: 'Non vérifié', tag: 'Standard', notes: '' });
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', balance: 0, status: 'Actif', kyc: 'Non vérifié', tag: 'Standard', notes: '' });
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -40,13 +41,16 @@ export default function UsersTab({ data, dirty, onChangeSection, onSave, onReset
     updateUsers(users.filter((user) => user.id !== id));
   }
 
-  function addUser() {
-    if (readOnly || !newUser.name.trim() || !validateEmail(newUser.email)) return;
+  async function addUser() {
+    if (readOnly || !newUser.name.trim() || !validateEmail(newUser.email) || !newUser.password.trim()) return;
+    const passwordHash = await hashValue(newUser.password);
     updateUsers([
       {
         id: generateId('USR'),
         name: newUser.name.trim(),
-        email: newUser.email.trim(),
+        email: newUser.email.trim().toLowerCase(),
+        passwordHash,
+        role: 'user',
         createdAt: new Date().toISOString(),
         lastActivity: new Date().toISOString(),
         balance: Number(newUser.balance || 0),
@@ -57,7 +61,7 @@ export default function UsersTab({ data, dirty, onChangeSection, onSave, onReset
       },
       ...users,
     ]);
-    setNewUser({ name: '', email: '', balance: 0, status: 'Actif', kyc: 'Non vérifié', tag: 'Standard', notes: '' });
+    setNewUser({ name: '', email: '', password: '', balance: 0, status: 'Actif', kyc: 'Non vérifié', tag: 'Standard', notes: '' });
   }
 
   return (
@@ -69,10 +73,11 @@ export default function UsersTab({ data, dirty, onChangeSection, onSave, onReset
         <AdminMetric label="KYC vérifié" value={String(users.filter((user) => user.kyc === 'Vérifié').length)} helper="Conformité" tone="info" />
       </div>
 
-      <AdminSection eyebrow="Ajout" title="Ajouter un utilisateur" description="Le nouvel utilisateur est immédiatement disponible pour la connexion locale, le dashboard et les transactions.">
+      <AdminSection eyebrow="Ajout" title="Ajouter un utilisateur" description="Le nouvel utilisateur est immédiatement disponible pour la connexion locale et l’historique des transactions.">
         <div className="field-grid field-grid--3">
           <AdminField label="Nom"><input disabled={readOnly} value={newUser.name} onChange={(event) => setNewUser((current) => ({ ...current, name: event.target.value }))} /></AdminField>
           <AdminField label="Email" error={newUser.email && !validateEmail(newUser.email) ? 'Adresse email invalide.' : ''}><input disabled={readOnly} value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} /></AdminField>
+          <AdminField label="Mot de passe temporaire"><input disabled={readOnly} type="password" value={newUser.password} onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} /></AdminField>
           <AdminField label="Solde estimé"><input disabled={readOnly} type="number" min="0" step="0.01" value={newUser.balance} onChange={(event) => setNewUser((current) => ({ ...current, balance: Number(event.target.value || 0) }))} /></AdminField>
           <AdminField label="Statut"><select disabled={readOnly} value={newUser.status} onChange={(event) => setNewUser((current) => ({ ...current, status: event.target.value }))}>{STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></AdminField>
           <AdminField label="KYC"><select disabled={readOnly} value={newUser.kyc} onChange={(event) => setNewUser((current) => ({ ...current, kyc: event.target.value }))}>{KYC_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></AdminField>
@@ -81,7 +86,7 @@ export default function UsersTab({ data, dirty, onChangeSection, onSave, onReset
           {!readOnly ? (
             <div className="field field--action">
               <span className="field__label">Action</span>
-              <button type="button" className="button button--primary" onClick={addUser} disabled={!newUser.name.trim() || !validateEmail(newUser.email)}>
+              <button type="button" className="button button--primary" onClick={addUser} disabled={!newUser.name.trim() || !validateEmail(newUser.email) || !newUser.password.trim()}>
                 Ajouter l’utilisateur
               </button>
             </div>

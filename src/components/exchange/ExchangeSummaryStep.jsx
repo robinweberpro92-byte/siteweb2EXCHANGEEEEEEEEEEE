@@ -8,7 +8,7 @@ export default function ExchangeSummaryStep({ flow, recipient, estimate, referen
         <div>
           <p className="eyebrow">{language === 'fr' ? 'Récapitulatif' : 'Summary'}</p>
           <h3>{language === 'fr' ? 'Contrôlez les informations avant de poursuivre' : 'Review your information before continuing'}</h3>
-          <p className="muted">{language === 'fr' ? 'Le récapitulatif reprend le montant, les frais, la destination et la référence de rapprochement.' : 'The summary includes amount, fees, destination and the reconciliation reference.'}</p>
+          <p className="muted">{language === 'fr' ? 'Vérifiez calmement vos informations avant de suivre les instructions.' : 'Review your details carefully before following the instructions.'}</p>
         </div>
       </div>
 

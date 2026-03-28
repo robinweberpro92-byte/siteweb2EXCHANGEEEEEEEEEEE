@@ -11,7 +11,7 @@ export default function ExchangeLandingStep({ appData, onSelect }) {
         <div>
           <p className="eyebrow">{language === 'fr' ? 'Flux disponibles' : 'Available flows'}</p>
           <h3>{language === 'fr' ? 'Choisissez le type d’opération' : 'Choose the operation type'}</h3>
-          <p className="muted">{language === 'fr' ? 'Les cartes affichées ci-dessous suivent directement les combinaisons activées dans l’admin.' : 'The cards below directly follow the combinations enabled from the admin panel.'}</p>
+          <p className="muted">{language === 'fr' ? 'Choisissez simplement le type d’opération que vous souhaitez effectuer.' : 'Simply choose the type of operation you want to complete.'}</p>
         </div>
       </div>
 
@@ -25,8 +25,8 @@ export default function ExchangeLandingStep({ appData, onSelect }) {
             <strong>{copy.exchange.flowLabels[flow.key] || flow.label}</strong>
             <p>
               {language === 'fr'
-                ? `${flow.paymentMethod} en source, ${flow.receiveMethod} en destination. Le formulaire et les instructions s’adaptent automatiquement.`
-                : `${flow.paymentMethod} as source, ${flow.receiveMethod} as destination. The form and instructions adapt automatically.`}
+                ? `${flow.paymentMethod} en envoi, ${flow.receiveMethod} en réception. Le parcours s’adapte automatiquement.`
+                : `${flow.paymentMethod} as the sending method and ${flow.receiveMethod} as the receiving method. The flow adapts automatically.`}
             </p>
           </button>
         ))}

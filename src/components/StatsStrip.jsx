@@ -19,7 +19,7 @@ export default function StatsStrip() {
     {
       label: language === 'fr' ? 'Note moyenne' : 'Average rating',
       value: `${config.trustIndicators.averageRating.toFixed(1)}/5`,
-      helper: `${formatNumber(config.trustIndicators.reviewCount, 0, language)} reviews`,
+      helper: language === 'fr' ? `${formatNumber(config.trustIndicators.reviewCount, 0, language)} avis` : `${formatNumber(config.trustIndicators.reviewCount, 0, language)} reviews`,
     },
     {
       label: language === 'fr' ? 'Taux de completion' : 'Completion rate',

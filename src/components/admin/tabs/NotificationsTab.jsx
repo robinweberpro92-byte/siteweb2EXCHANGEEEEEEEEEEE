@@ -5,8 +5,8 @@ import { formatDateTime, routeLabel, statusTone } from '../../../utils/format';
 import { generateId } from '../../../utils/storage';
 
 const TYPES = ['info', 'success', 'warning', 'error'];
-const TARGETS = ['all', 'home', 'exchange', 'market', 'dashboard', 'transactions', 'login'];
-const DISPLAYS = ['toast', 'banner', 'dashboard'];
+const TARGETS = ['all', 'home', 'exchange', 'transactions', 'login'];
+const DISPLAYS = ['toast', 'banner', 'inline'];
 
 export default function NotificationsTab({ data, dirty, onChangeSection, onSave, onReset, readOnly = false }) {
   const notifications = data.notifications;
@@ -50,7 +50,7 @@ export default function NotificationsTab({ data, dirty, onChangeSection, onSave,
       <div className="metric-grid metric-grid--4">
         <AdminMetric label="Notifications actives" value={String(activeCount)} helper="toutes pages" />
         <AdminMetric label="Historique" value={String(notifications.history.length)} helper="messages conservés" tone="info" />
-        <AdminMetric label="Dashboard center" value={notifications.dashboardEnabled ? 'On' : 'Off'} helper="bloc dashboard" tone="success" />
+        <AdminMetric label="Inline messages" value={notifications.dashboardEnabled ? 'On' : 'Off'} helper="transaction list" tone="success" />
         <AdminMetric label="Annonce globale" value={data.branding.announcementEnabled ? 'On' : 'Off'} helper="navbar banner" tone="warning" />
       </div>
 
@@ -68,10 +68,10 @@ export default function NotificationsTab({ data, dirty, onChangeSection, onSave,
 
       <AdminSection eyebrow="Pilotage" title="Messages actifs & historique" description="Activez, désactivez ou supprimez les messages ciblés par page.">
         <div className="toggle-stack">
-          <AdminToggle label="Notifications dashboard activées" checked={notifications.dashboardEnabled} onChange={(checked) => updateNotifications({ dashboardEnabled: checked })} disabled={readOnly} />
+          <AdminToggle label="Messages inline activés" checked={notifications.dashboardEnabled} onChange={(checked) => updateNotifications({ dashboardEnabled: checked })} disabled={readOnly} />
         </div>
         {!notifications.items.length ? (
-          <AdminEmptyState title="Aucune notification" description="Créez votre premier message à afficher en toast, bandeau ou dashboard." />
+          <AdminEmptyState title="Aucune notification" description="Créez votre premier message à afficher en toast, bandeau ou message inline." />
         ) : (
           <div className="list-stack">
             {notifications.items.map((item) => (

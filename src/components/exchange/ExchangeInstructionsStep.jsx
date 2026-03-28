@@ -29,7 +29,7 @@ export default function ExchangeInstructionsStep({ appData, flow, asset, recipie
         <div>
           <p className="eyebrow">{language === 'fr' ? 'Instructions' : 'Instructions'}</p>
           <h3>{language === 'fr' ? 'Suivez précisément les informations de règlement' : 'Follow the settlement details carefully'}</h3>
-          <p className="muted">{language === 'fr' ? 'Les montants et coordonnées affichés ci-dessous reprennent la configuration active du panel admin.' : 'The values and coordinates below directly reflect the active admin configuration.'}</p>
+          <p className="muted">{language === 'fr' ? 'Utilisez les informations ci-dessous exactement comme indiquées pour éviter tout retard.' : 'Use the details below exactly as shown to avoid delays.'}</p>
         </div>
       </div>
 

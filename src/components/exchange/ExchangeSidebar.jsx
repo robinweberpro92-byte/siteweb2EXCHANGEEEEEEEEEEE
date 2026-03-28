@@ -43,8 +43,8 @@ export default function ExchangeSidebar({ appData, flowLabel, estimate }) {
       <Card>
         <div className="section-head section-head--compact">
           <div>
-            <p className="eyebrow">{language === 'fr' ? 'Marché' : 'Market'}</p>
-            <h3>{language === 'fr' ? 'Actifs en vue' : 'Assets in focus'}</h3>
+            <p className="eyebrow">{language === 'fr' ? 'Repères' : 'Rate cues'}</p>
+            <h3>{language === 'fr' ? 'Cours indicatifs' : 'Indicative prices'}</h3>
           </div>
           {estimate ? <Badge tone="info">Net {estimate.formattedNetFiat}</Badge> : null}
         </div>

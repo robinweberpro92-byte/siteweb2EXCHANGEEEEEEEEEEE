@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import AdminShell, { SensitiveGate } from '../components/admin/AdminShell';
 import { ADMIN_TABS } from '../components/admin/adminTabs';
 import OverviewTab from '../components/admin/tabs/OverviewTab';
@@ -16,6 +16,7 @@ import AnalyticsTab from '../components/admin/tabs/AnalyticsTab';
 import ObjectivesTab from '../components/admin/tabs/ObjectivesTab';
 import AdminsRolesTab from '../components/admin/tabs/AdminsRolesTab';
 import SecurityTab from '../components/admin/tabs/SecurityTab';
+import PasswordResetsTab from '../components/admin/tabs/PasswordResetsTab';
 import HelpCenterTab from '../components/admin/tabs/HelpCenterTab';
 import LogsTab from '../components/admin/tabs/LogsTab';
 import Card from '../components/Card';
@@ -38,6 +39,7 @@ const TAB_COMPONENTS = {
   objectives: ObjectivesTab,
   adminsRoles: AdminsRolesTab,
   security: SecurityTab,
+  passwordResets: PasswordResetsTab,
   helpCenter: HelpCenterTab,
   logs: LogsTab,
 };
@@ -55,6 +57,8 @@ export default function AdminPage() {
     showToast,
     logout,
     can,
+    resolvePasswordResetRequest,
+    removePasswordResetRequest,
     resolveRoleDefinition,
   } = useApp();
 
@@ -168,16 +172,7 @@ export default function AdminPage() {
   }
 
   if (auth.role !== 'admin') {
-    return (
-      <section className="container section centered-page">
-        <Card className="auth-card">
-          <p className="eyebrow">Admin</p>
-          <h1>Session administrateur requise</h1>
-          <p className="muted">Connectez-vous avec un compte administrateur local pour piloter la plateforme.</p>
-          <Link to="/login" className="button button--primary">Aller à la connexion</Link>
-        </Card>
-      </section>
-    );
+    return <Navigate to={auth.loggedIn ? '/' : '/login'} replace />;
   }
 
   if (!visibleTabs.length) {
@@ -227,6 +222,8 @@ export default function AdminPage() {
             readOnly={readOnly}
             language={language}
             resolveRoleDefinition={resolveRoleDefinition}
+            onResolvePasswordReset={resolvePasswordResetRequest}
+            onRemovePasswordReset={removePasswordResetRequest}
           />
         )}
       </AdminShell>

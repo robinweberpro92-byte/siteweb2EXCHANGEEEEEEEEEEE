@@ -47,6 +47,10 @@ function buildAlerts(data) {
   if (!data.security.loginPageEnabled) {
     alerts.push({ id: 'login-disabled', tone: 'info', title: 'Login public désactivé', detail: 'Seul le mode invité et/ou admin reste disponible tant que la page login public est coupée.', target: 'security' });
   }
+  const pendingResets = (data.passwordResets?.items || []).filter((item) => item.status === 'pending').length;
+  if (pendingResets) {
+    alerts.push({ id: 'password-resets', tone: 'warning', title: 'Demandes de reset à traiter', detail: `${pendingResets} demande(s) de mot de passe oublié attendent une action.`, target: 'passwordResets' });
+  }
   return alerts;
 }
 
@@ -75,6 +79,7 @@ export default function OverviewTab({ data, currentRoleLabel, onOpenTab }) {
         <AdminMetric label="Temps moyen" value={`${data.analytics.averageProcessingMinutes} min`} helper="Traitement moyen" tone="warning" />
         <AdminMetric label="Note moyenne" value={`${Number(data.trustIndicators.averageRating || 0).toFixed(1)}/5`} helper={`${compact(data.trustIndicators.reviewCount)} avis`} tone="info" />
         <AdminMetric label="Admin connecté" value={currentRoleLabel || 'Admin'} helper="Rôle actif" tone="danger" />
+        <AdminMetric label="Resets en attente" value={String((data.passwordResets?.items || []).filter((item) => item.status === 'pending').length)} helper="support" tone="warning" />
       </div>
 
       <AdminSection
@@ -88,6 +93,7 @@ export default function OverviewTab({ data, currentRoleLabel, onOpenTab }) {
           <button type="button" className="button button--ghost" onClick={() => onOpenTab?.('users')}>Ajouter un utilisateur</button>
           <button type="button" className="button button--ghost" onClick={() => onOpenTab?.('adminsRoles')}>Ajouter un admin</button>
           <button type="button" className="button button--ghost" onClick={() => onOpenTab?.('security')}>Accès & maintenance</button>
+          <button type="button" className="button button--ghost" onClick={() => onOpenTab?.('passwordResets')}>Traiter les resets</button>
           <button type="button" className="button button--ghost" onClick={() => onOpenTab?.('analytics')}>Voir les analytics</button>
         </div>
       </AdminSection>

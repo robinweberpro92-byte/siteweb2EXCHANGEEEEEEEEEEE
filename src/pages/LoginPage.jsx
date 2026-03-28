@@ -1,124 +1,155 @@
 import { useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import Card from '../components/Card';
-import Badge from '../components/Badge';
-import ReviewsSection from '../components/ReviewsSection';
+import GuestBadge from '../components/GuestBadge';
 import { useApp } from '../context/AppContext';
 
 export default function LoginPage() {
-  const { auth, config, ready, loginAdmin, loginUser, continueAsGuest, copy, language } = useApp();
-  const [userEmail, setUserEmail] = useState('');
-  const [adminEmail, setAdminEmail] = useState('owner@clyra.exchange');
-  const [adminPassword, setAdminPassword] = useState('control2026!');
-  const [userMessage, setUserMessage] = useState('');
-  const [adminMessage, setAdminMessage] = useState('');
+  const { auth, config, ready, copy, language, loginAccount, registerAccount, requestPasswordReset, continueAsGuest } = useApp();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [feedback, setFeedback] = useState({ tone: '', message: '' });
   const [loading, setLoading] = useState(false);
-
-  const activeAdmins = useMemo(() => config.admins.filter((admin) => admin.status === 'active'), [config.admins]);
+  const [showForgot, setShowForgot] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const signupEnabled = useMemo(() => config.security.loginPageEnabled !== false, [config.security.loginPageEnabled]);
 
   if (!ready) {
     return (
       <section className="container section centered-page">
-        <Card className="auth-card auth-card--large">
-          <p className="eyebrow">{copy.common.login}</p>
+        <Card className="auth-panel auth-panel--single">
           <h1>Loading…</h1>
         </Card>
       </section>
     );
   }
 
-  if (auth.role === 'admin') return <Navigate to="/admin" replace />;
-  if (auth.role === 'user' || auth.isGuest) return <Navigate to="/dashboard" replace />;
+  if (auth.role === 'admin') return <Navigate to="/secure-access" replace />;
+  if (auth.loggedIn) return <Navigate to="/" replace />;
 
-  async function handleUserSubmit(event) {
+  async function handleLogin(event) {
     event.preventDefault();
-    setUserMessage('');
-    const result = loginUser(userEmail);
+    setLoading(true);
+    setFeedback({ tone: '', message: '' });
+    const result = await loginAccount(email, password);
+    setLoading(false);
     if (!result.ok) {
-      setUserMessage(result.message);
+      setFeedback({ tone: 'danger', message: result.message });
     }
   }
 
-  async function handleAdminSubmit(event) {
-    event.preventDefault();
+  async function handleCreate() {
+    if (!signupEnabled) {
+      setFeedback({ tone: 'warning', message: copy.login.disabledMessage });
+      return;
+    }
     setLoading(true);
-    setAdminMessage('');
-    const result = await loginAdmin(adminEmail, adminPassword);
+    setFeedback({ tone: '', message: '' });
+    const result = await registerAccount({ email, password });
     setLoading(false);
     if (!result.ok) {
-      setAdminMessage(result.message);
+      setFeedback({ tone: 'danger', message: result.message });
     }
+  }
+
+  async function handleForgotPassword(event) {
+    if (event?.preventDefault) event.preventDefault();
+    const result = await requestPasswordReset(resetEmail || email);
+    if (!result.ok) {
+      setFeedback({ tone: 'danger', message: result.message });
+      return;
+    }
+    setFeedback({ tone: 'info', message: language === 'fr' ? 'Demande envoyée. Consultez votre support habituel pour la suite.' : 'Request sent. Please use your usual support channel for follow-up.' });
+    setShowForgot(false);
+    setResetEmail('');
   }
 
   return (
-    <section className="container section page-intro login-page login-page--rich">
-      <div className="page-head">
-        <span className="eyebrow">{copy.common.login}</span>
-        <h1>{copy.login.title}</h1>
-        <p>{copy.login.subtitle}</p>
-      </div>
+    <section className="container section auth-page">
+      <div className="auth-page__inner">
+        <Card className="auth-panel auth-panel--single">
+          <div className="auth-panel__header">
+            <div>
+              <p className="eyebrow">{copy.common.login}</p>
+              <h1>{copy.login.title}</h1>
+              <p className="muted">{copy.login.subtitle}</p>
+            </div>
+            <GuestBadge />
+          </div>
 
-      <div className="login-grid login-grid--3col">
-        <Card className="auth-card auth-card--feature">
-          <div className="hero-badges hero-badges--small">
-            <Badge tone="info">{language === 'fr' ? 'Accès rapide' : 'Fast access'}</Badge>
-            <Badge tone="success">{config.theme.mode === 'dark' ? 'Dark' : 'Light'}</Badge>
-          </div>
-          <h3>{copy.login.guestTitle}</h3>
-          <p className="muted">{copy.login.guestSubtitle}</p>
-          <div className="summary-list summary-list--spaced">
-            <div className="summary-row"><span>{language === 'fr' ? 'Échange' : 'Exchange'}</span><strong>{language === 'fr' ? 'Disponible' : 'Available'}</strong></div>
-            <div className="summary-row"><span>{language === 'fr' ? 'Marché' : 'Market'}</span><strong>{language === 'fr' ? 'Disponible' : 'Available'}</strong></div>
-            <div className="summary-row"><span>{language === 'fr' ? 'Dashboard' : 'Dashboard'}</span><strong>{language === 'fr' ? 'Vue limitée' : 'Limited view'}</strong></div>
-          </div>
-          <button type="button" className="button button--primary button--full" onClick={() => continueAsGuest({ displayName: language === 'fr' ? 'Invité' : 'Guest' })}>
+          <form className="auth-form" onSubmit={handleLogin}>
+            <label className="field">
+              <span className="field__label">Email</span>
+              <input
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="name@example.com"
+              />
+            </label>
+
+            <label className="field">
+              <span className="field__label">{language === 'fr' ? 'Mot de passe' : 'Password'}</span>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder={language === 'fr' ? 'Votre mot de passe' : 'Your password'}
+              />
+            </label>
+
+            <div className="auth-actions-row">
+              <button type="submit" className="button button--primary button--full" disabled={loading || !email || !password}>
+                {loading ? (language === 'fr' ? 'Connexion…' : 'Signing in…') : (language === 'fr' ? 'Se connecter' : 'Sign in')}
+              </button>
+              <button type="button" className="button button--ghost button--full" disabled={loading || !email || !password} onClick={handleCreate}>
+                {language === 'fr' ? 'Créer un compte' : 'Create account'}
+              </button>
+            </div>
+
+            <button type="button" className="auth-link" onClick={() => setShowForgot((current) => !current)}>
+              {language === 'fr' ? 'Mot de passe oublié ?' : 'Forgot password?'}
+            </button>
+
+            {showForgot ? (
+              <div className="forgot-box">
+                <label className="field field--compact">
+                  <span className="field__label">Email</span>
+                  <input value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} placeholder="name@example.com" />
+                </label>
+                <button type="button" className="button button--soft button--full" onClick={handleForgotPassword}>
+                  {language === 'fr' ? 'Envoyer la demande' : 'Send request'}
+                </button>
+                <p className="muted">{language === 'fr' ? 'Le support traitera votre demande depuis le panneau sécurisé.' : 'Support will review your request from the secure control panel.'}</p>
+              </div>
+            ) : null}
+
+            {feedback.message ? <div className={`login-hint login-hint--${feedback.tone || 'info'}`}>{feedback.message}</div> : null}
+          </form>
+
+          <div className="auth-divider"><span>{language === 'fr' ? 'ou' : 'or'}</span></div>
+
+          <button
+            type="button"
+            className="button button--soft button--full"
+            onClick={() => continueAsGuest({ displayName: language === 'fr' ? 'Invité' : 'Guest' })}
+          >
             {copy.common.continueAsGuest}
           </button>
-        </Card>
 
-        <Card className="auth-card">
-          <p className="eyebrow">{language === 'fr' ? 'Accès utilisateur' : 'User access'}</p>
-          <h3>{language === 'fr' ? 'Ouvrir le dashboard' : 'Open the dashboard'}</h3>
-          <p className="muted">{language === 'fr' ? 'Utilisez l’adresse email d’un utilisateur local créé dans l’onglet Utilisateurs.' : 'Use the email of a local user created from the Users admin tab.'}</p>
-          {config.security.loginPageEnabled ? (
-            <form className="form-grid" onSubmit={handleUserSubmit}>
-              <label>
-                <span>Email</span>
-                <input value={userEmail} onChange={(event) => setUserEmail(event.target.value)} placeholder="utilisateur@example.com" />
-              </label>
-              <button type="submit" className="button button--primary button--full">{language === 'fr' ? 'Accéder au dashboard' : 'Access dashboard'}</button>
-            </form>
-          ) : (
-            <div className="login-hint">{copy.login.disabledMessage}</div>
-          )}
-          {userMessage ? <div className="login-hint login-hint--danger">{userMessage}</div> : null}
-        </Card>
-
-        <Card className="auth-card">
-          <p className="eyebrow">{language === 'fr' ? 'Administration' : 'Administration'}</p>
-          <h3>{copy.login.adminTitle}</h3>
-          <p className="muted">{copy.login.adminSubtitle}</p>
-          <div className="summary-row summary-row--hint"><span>{language === 'fr' ? 'Admins actifs' : 'Active admins'}</span><strong>{activeAdmins.length}</strong></div>
-          <form className="form-grid" onSubmit={handleAdminSubmit}>
-            <label>
-              <span>Email</span>
-              <input value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} />
-            </label>
-            <label>
-              <span>{language === 'fr' ? 'Mot de passe' : 'Password'}</span>
-              <input type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} />
-            </label>
-            <button type="submit" className="button button--primary button--full" disabled={loading}>
-              {loading ? (language === 'fr' ? 'Connexion…' : 'Signing in…') : copy.login.adminTitle}
-            </button>
-          </form>
-          {adminMessage ? <div className="login-hint login-hint--danger">{adminMessage}</div> : null}
+          <div className="auth-panel__footer">
+            <div>
+              <strong>{language === 'fr' ? 'Support' : 'Support'}</strong>
+              <span>{config.branding.supportEmail}</span>
+            </div>
+            <div>
+              <strong>{language === 'fr' ? 'Récupération' : 'Recovery'}</strong>
+              <span>{language === 'fr' ? 'Demande traitée par le support' : 'Handled by support'}</span>
+            </div>
+          </div>
         </Card>
       </div>
-
-      <section className="section">
-        <ReviewsSection limit={3} compact title={language === 'fr' ? 'Ce que disent les utilisateurs' : 'What users are saying'} subtitle={language === 'fr' ? 'La preuve sociale renforce la confiance même avant la connexion.' : 'Social proof reinforces trust even before sign in.'} />
-      </section>
     </section>
   );
 }
