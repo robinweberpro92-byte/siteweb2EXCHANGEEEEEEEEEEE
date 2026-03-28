@@ -3,6 +3,7 @@ import { defaultConfig, ROLE_PRESETS } from '../config/defaultConfig';
 import { hashValue } from '../utils/hash';
 import {
   STORAGE_KEYS,
+  cleanupLegacyStorage,
   cloneValue,
   getStorageItem,
   pickSections,
@@ -162,6 +163,7 @@ function removeAdminEmailsFromUsers(users = [], admins = []) {
 }
 
 function buildInitialData() {
+  cleanupLegacyStorage();
   const configDefaults = pickSections(defaultConfig, CONFIG_SECTIONS);
   const baseConfig = getStorageItem(STORAGE_KEYS.config, configDefaults);
   const merged = {

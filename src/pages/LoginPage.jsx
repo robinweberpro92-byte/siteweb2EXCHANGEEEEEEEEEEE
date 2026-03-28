@@ -59,7 +59,7 @@ export default function LoginPage() {
       setFeedback({ tone: 'danger', message: result.message });
       return;
     }
-    setFeedback({ tone: 'info', message: language === 'fr' ? 'Demande envoyée. Consultez votre support habituel pour la suite.' : 'Request sent. Please use your usual support channel for follow-up.' });
+    setFeedback({ tone: 'info', message: language === 'fr' ? 'Demande envoyée. Le support examinera votre adresse et reviendra vers vous.' : 'Request sent. Support will review your address and follow up.' });
     setShowForgot(false);
     setResetEmail('');
   }
@@ -121,7 +121,7 @@ export default function LoginPage() {
                 <button type="button" className="button button--soft button--full" onClick={handleForgotPassword}>
                   {language === 'fr' ? 'Envoyer la demande' : 'Send request'}
                 </button>
-                <p className="muted">{language === 'fr' ? 'Le support traitera votre demande depuis le panneau sécurisé.' : 'Support will review your request from the secure control panel.'}</p>
+                <p className="muted">{language === 'fr' ? 'Le support traitera votre demande dès que possible.' : 'Support will review your request as soon as possible.'}</p>
               </div>
             ) : null}
 

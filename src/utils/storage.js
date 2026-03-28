@@ -1,21 +1,47 @@
+const STORAGE_NAMESPACE = 'clyra_exchange';
+const STORAGE_SCHEMA_VERSION = 'v4';
+const STORAGE_CLEANUP_MARKER = `${STORAGE_NAMESPACE}_cleanup_${STORAGE_SCHEMA_VERSION}`;
+
 export const STORAGE_KEYS = {
-  config: 'app_config_v1',
-  users: 'app_users_v2',
-  transactions: 'app_transactions_v1',
-  notifications: 'app_notifications_v1',
-  adminAccess: 'app_admin_access_v1',
-  adminLogs: 'app_admin_logs_v1',
-  admins: 'app_admins_v2',
-  reviews: 'app_reviews_v1',
-  objectives: 'app_objectives_v1',
-  analytics: 'app_analytics_v1',
-  trustIndicators: 'app_trust_indicators_v1',
-  session: 'app_session_v2',
-  guestSession: 'app_guest_session_v2',
-  uiPrefs: 'app_ui_prefs_v1',
-  adminDraft: 'app_admin_draft_v1',
-  passwordResetRequests: 'app_password_reset_requests_v2',
+  config: `${STORAGE_NAMESPACE}_config_${STORAGE_SCHEMA_VERSION}`,
+  users: `${STORAGE_NAMESPACE}_users_${STORAGE_SCHEMA_VERSION}`,
+  transactions: `${STORAGE_NAMESPACE}_transactions_${STORAGE_SCHEMA_VERSION}`,
+  notifications: `${STORAGE_NAMESPACE}_notifications_${STORAGE_SCHEMA_VERSION}`,
+  adminAccess: `${STORAGE_NAMESPACE}_admin_access_${STORAGE_SCHEMA_VERSION}`,
+  adminLogs: `${STORAGE_NAMESPACE}_admin_logs_${STORAGE_SCHEMA_VERSION}`,
+  admins: `${STORAGE_NAMESPACE}_admins_${STORAGE_SCHEMA_VERSION}`,
+  reviews: `${STORAGE_NAMESPACE}_reviews_${STORAGE_SCHEMA_VERSION}`,
+  objectives: `${STORAGE_NAMESPACE}_objectives_${STORAGE_SCHEMA_VERSION}`,
+  analytics: `${STORAGE_NAMESPACE}_analytics_${STORAGE_SCHEMA_VERSION}`,
+  trustIndicators: `${STORAGE_NAMESPACE}_trust_indicators_${STORAGE_SCHEMA_VERSION}`,
+  session: `${STORAGE_NAMESPACE}_session_${STORAGE_SCHEMA_VERSION}`,
+  guestSession: `${STORAGE_NAMESPACE}_guest_session_${STORAGE_SCHEMA_VERSION}`,
+  uiPrefs: `${STORAGE_NAMESPACE}_ui_prefs_${STORAGE_SCHEMA_VERSION}`,
+  adminDraft: `${STORAGE_NAMESPACE}_admin_draft_${STORAGE_SCHEMA_VERSION}`,
+  passwordResetRequests: `${STORAGE_NAMESPACE}_password_reset_requests_${STORAGE_SCHEMA_VERSION}`,
 };
+
+const LEGACY_KEY_PREFIXES = ['app_', 'clyra_exchange_'];
+
+export function cleanupLegacyStorage() {
+  if (typeof window === 'undefined') return;
+  const { localStorage } = window;
+  if (localStorage.getItem(STORAGE_CLEANUP_MARKER) === 'done') return;
+
+  const currentKeys = new Set([...Object.values(STORAGE_KEYS), STORAGE_CLEANUP_MARKER]);
+  const keysToRemove = [];
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || currentKeys.has(key)) continue;
+    if (LEGACY_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      keysToRemove.push(key);
+    }
+  }
+
+  keysToRemove.forEach((key) => localStorage.removeItem(key));
+  localStorage.setItem(STORAGE_CLEANUP_MARKER, 'done');
+}
 
 export function isPlainObject(value) {
   return Object.prototype.toString.call(value) === '[object Object]';

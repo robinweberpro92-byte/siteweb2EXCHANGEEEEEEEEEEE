@@ -1,13 +1,6 @@
 # Clyra Exchange Front
 
-Application React + Vite front-only pour une plateforme crypto/paiement premium avec :
-
-- landing page cohérente
-- moteur d’échange multi-flows
-- dashboard utilisateur
-- panel admin par onglets
-- persistance complète via localStorage
-- build Vite simple et compatible Vercel
+Application React + Vite front-only pour un service d’échange crypto/paiement.
 
 ## Stack
 
@@ -30,37 +23,21 @@ npm run dev
 npm run build
 ```
 
-Le build génère un dossier `dist` directement exploitable sur Vercel.
+Le build génère un dossier `dist` compatible Vercel.
 
 ## Déploiement Vercel
 
-- Framework Preset : `Vite` ou `Other`
+- Framework Preset : `Vite`
 - Build Command : `npm run build`
 - Output Directory : `dist`
 
-Aucune base externe, aucune API obligatoire, aucun runtime serveur n’est requis.
+Le projet n’a pas besoin de backend, de base externe ni d’API obligatoire.
 
-## Accès admin local par défaut
+## Accès owner par défaut
 
-- email : `admin@clyra.exchange`
+- email : `owner@clyra.exchange`
 - mot de passe : `control2026!`
 
-Ces identifiants restent modifiables depuis l’onglet **Sécurité & Accès Admin**.
+## Stockage local
 
-## Persistance locale
-
-Les données sont stockées via des clés versionnées :
-
-- `app_config_v1`
-- `app_users_v1`
-- `app_transactions_v1`
-- `app_notifications_v1`
-- `app_admin_access_v1`
-- `app_admin_logs_v1`
-- `app_analytics_v1`
-- `app_session_v1`
-- `app_admin_draft_v1`
-
-## Notes
-
-La sécurité d’authentification admin reste strictement locale au navigateur. Le mot de passe et le PIN sont hachés côté front pour éviter le stockage en clair, sans prétendre fournir une sécurité serveur réelle.
+Cette version isole complètement les données avec un nouvel espace de clés `clyra_exchange_*_v4` et supprime les anciennes clés `app_*` / `clyra_exchange_*` plus anciennes au premier chargement pour éviter les collisions.

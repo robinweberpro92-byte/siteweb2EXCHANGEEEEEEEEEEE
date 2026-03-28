@@ -476,7 +476,7 @@ const frContent = {
     ],
   },
   exchange: {
-    title: 'Moteur d’échange guidé',
+    title: 'Échange clair et rapide',
     intro: 'Choisissez votre flux, renseignez la destination, vérifiez le montant net et suivez vos instructions sans vous perdre.',
     warning: 'Les montants affichés sont fournis à titre indicatif avant vérification finale du règlement.',
     confirmationMessage: 'Votre demande a été enregistrée avec succès.',
@@ -502,7 +502,7 @@ const frContent = {
   },
   market: {
     title: 'Marché local',
-    subtitle: 'Les actifs visibles ici sont pilotés depuis le panel admin. Prix, variations et ordre d’affichage restent éditables sans API obligatoire.',
+    subtitle: 'Les actifs visibles ici sont mis à jour depuis les paramètres actifs du service.',
   },
   transactions: {
     title: 'Vos transactions',
@@ -510,7 +510,7 @@ const frContent = {
   },
   login: {
     title: 'Accédez à votre espace',
-    subtitle: 'Connectez-vous, créez un compte ou démarrez immédiatement avec une session invitée.',
+    subtitle: 'Connectez-vous pour suivre vos demandes, créez un compte en quelques secondes ou commencez tout de suite en invité.',
     adminTitle: 'Connexion',
     adminSubtitle: 'Entrez votre email et votre mot de passe pour accéder à votre compte.',
     errorMessage: 'Les informations de connexion ne correspondent à aucun compte actif.',
@@ -521,7 +521,7 @@ const frContent = {
   },
   maintenance: {
     title: 'Mise à jour opérationnelle en cours',
-    message: 'La plateforme publique est temporairement indisponible pendant une courte intervention. Les accès admin peuvent rester ouverts selon la configuration.',
+    message: 'La plateforme est temporairement indisponible pendant une courte intervention. Merci de revenir dans quelques instants.',
   },
   admin: {
     title: 'Pilotage admin',
@@ -607,7 +607,7 @@ const enContent = {
     ],
   },
   exchange: {
-    title: 'Guided exchange engine',
+    title: 'Clear and fast exchange',
     intro: 'Choose a route, set your destination, review your net amount and follow clear instructions without friction.',
     warning: 'Displayed amounts are estimates provided before final payment verification.',
     confirmationMessage: 'Your request has been registered successfully.',
@@ -633,7 +633,7 @@ const enContent = {
   },
   market: {
     title: 'Local market view',
-    subtitle: 'Visible assets are controlled from the admin panel. Prices, variations and ordering remain editable without a mandatory API.',
+    subtitle: 'Visible assets are updated from the active service settings.',
   },
   transactions: {
     title: 'Your transactions',
@@ -641,7 +641,7 @@ const enContent = {
   },
   login: {
     title: 'Access your account',
-    subtitle: 'Sign in, create an account or continue with a guest session in one simple panel.',
+    subtitle: 'Sign in to track your requests, create an account in seconds or start right away as a guest.',
     adminTitle: 'Sign in',
     adminSubtitle: 'Enter your email and password to access your account.',
     errorMessage: 'The provided credentials do not match any active account.',
@@ -652,7 +652,7 @@ const enContent = {
   },
   maintenance: {
     title: 'Operational maintenance in progress',
-    message: 'The public platform is temporarily unavailable during a short intervention. Admin access may remain available depending on configuration.',
+    message: 'The platform is temporarily unavailable during a short intervention. Please check back shortly.',
   },
   admin: {
     title: 'Admin control center',
@@ -664,7 +664,7 @@ const enContent = {
 export const defaultConfig = {
   meta: {
     schemaVersion: 4,
-    storageVersion: 2,
+    storageVersion: 4,
     locale: 'fr-FR',
     currency: 'EUR',
   },
